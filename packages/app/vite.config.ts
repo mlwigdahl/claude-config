@@ -12,7 +12,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
+          'vendor-react': ['react', 'react-dom', 'react/jsx-runtime'],
           'vendor-chakra': ['@chakra-ui/react', '@emotion/react', '@emotion/styled'],
           'vendor-ui': ['framer-motion', '@chakra-ui/icons'],
         },
@@ -50,6 +50,6 @@ export default defineConfig({
     setupFiles: ['./src/setupTests.ts'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', '@chakra-ui/react'],
+    include: ['react', 'react-dom', 'react/jsx-runtime', '@chakra-ui/react', '@emotion/react', '@emotion/styled'],
   },
 })

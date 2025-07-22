@@ -25,7 +25,7 @@ import {
   InputLeftElement,
 } from '@chakra-ui/react';
 import { ChevronRightIcon, ChevronUpIcon } from '@chakra-ui/icons';
-import { FileSystemService, DirectoryEntry } from '../../services/fileSystemService';
+import { FileSystemService, DirectoryEntry, DefaultDirectoryInfo } from '../../services/fileSystemService';
 
 interface DirectoryBrowserProps {
   isOpen: boolean;
@@ -38,13 +38,14 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({
   isOpen,
   onClose,
   onSelect,
-  initialPath = '/'
+  initialPath
 }) => {
-  const [currentPath, setCurrentPath] = useState(initialPath);
+  const [defaultDirInfo, setDefaultDirInfo] = useState<DefaultDirectoryInfo | null>(null);
+  const [currentPath, setCurrentPath] = useState(initialPath || '');
   const [entries, setEntries] = useState<DirectoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [manualPath, setManualPath] = useState(initialPath);
+  const [manualPath, setManualPath] = useState(initialPath || '');
   
   const bgSelected = useColorModeValue('blue.50', 'blue.900');
   const bgHover = useColorModeValue('gray.50', 'gray.700');
@@ -69,10 +70,39 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({
     }
   };
 
-  // Navigate to parent directory
+  // Navigate to parent directory (cross-platform)
   const navigateUp = () => {
-    const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/';
-    loadDirectory(parentPath);
+    let parentPath: string;
+    
+    if (defaultDirInfo?.platform === 'win32') {
+      // Windows path handling
+      const pathParts = currentPath.split(/[\\/]/).filter(Boolean);
+      if (pathParts.length === 0) {
+        // Already at drives root
+        return;
+      } else if (pathParts.length === 1) {
+        // At drive root, go to drives view
+        setCurrentPath('');
+        setManualPath('');
+        setEntries([]);
+        return;
+      }
+      // Go up one directory
+      parentPath = pathParts.slice(0, -1).join('\\');
+    } else {
+      // Unix-like path handling (macOS, Linux)
+      const pathParts = currentPath.split('/');
+      if (pathParts.length <= 2) {
+        parentPath = '/';
+      } else {
+        parentPath = pathParts.slice(0, -1).join('/') || '/';
+      }
+      loadDirectory(parentPath);
+    }
+    
+    if (parentPath) {
+      loadDirectory(parentPath);
+    }
   };
 
   // Navigate to subdirectory
@@ -87,28 +117,86 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({
     }
   };
 
-  // Get breadcrumb items
+  // Get breadcrumb items (cross-platform)
   const getBreadcrumbItems = () => {
-    if (currentPath === '/') return [{ name: 'Root', path: '/' }];
-    
-    const parts = currentPath.split('/').filter(Boolean);
-    const items = [{ name: 'Root', path: '/' }];
-    
-    let buildPath = '';
-    for (const part of parts) {
-      buildPath += '/' + part;
-      items.push({ name: part, path: buildPath });
+    if (!currentPath || !defaultDirInfo) {
+      return [{ name: 'Loading...', path: '' }];
     }
-    
-    return items;
+
+    if (defaultDirInfo.platform === 'win32') {
+      // Windows path handling
+      const parts = currentPath.split(/[\\/]/).filter(Boolean);
+      if (parts.length === 0) return [{ name: 'Drives', path: '' }];
+      
+      const items = [];
+      
+      // Add drives root if we're deep enough
+      if (parts.length > 1) {
+        items.push({ name: 'Drives', path: '' });
+      }
+      
+      // Add drive root
+      if (parts.length > 0) {
+        const drive = parts[0];
+        items.push({ name: drive, path: drive + '\\' });
+        
+        // Add subsequent path parts
+        let buildPath = drive;
+        for (let i = 1; i < parts.length; i++) {
+          buildPath += '\\' + parts[i];
+          items.push({ name: parts[i], path: buildPath });
+        }
+      }
+      
+      return items;
+    } else {
+      // Unix-like path handling
+      if (currentPath === '/') return [{ name: 'Root', path: '/' }];
+      
+      const parts = currentPath.split('/').filter(Boolean);
+      const items = [{ name: 'Root', path: '/' }];
+      
+      let buildPath = '';
+      for (const part of parts) {
+        buildPath += '/' + part;
+        items.push({ name: part, path: buildPath });
+      }
+      
+      return items;
+    }
   };
 
-  // Load initial directory when modal opens
+  // Load default directory info and initial directory when modal opens
   useEffect(() => {
     if (isOpen) {
-      loadDirectory(currentPath);
+      const initializeDirectory = async () => {
+        try {
+          // Get default directory info if we don't have it
+          if (!defaultDirInfo) {
+            const dirInfo = await FileSystemService.getDefaultDirectory();
+            setDefaultDirInfo(dirInfo);
+            
+            // If no initial path was provided, use the default directory
+            if (!initialPath) {
+              setCurrentPath(dirInfo.defaultDirectory);
+              setManualPath(dirInfo.defaultDirectory);
+              await loadDirectory(dirInfo.defaultDirectory);
+              return;
+            }
+          }
+          
+          // Load the current path (either initial or already set)
+          const pathToLoad = currentPath || initialPath || defaultDirInfo?.defaultDirectory || '/';
+          await loadDirectory(pathToLoad);
+        } catch (error) {
+          console.error('Failed to initialize directory browser:', error);
+          setError(error instanceof Error ? error.message : 'Failed to initialize');
+        }
+      };
+      
+      initializeDirectory();
     }
-  }, [isOpen]);
+  }, [isOpen, initialPath, defaultDirInfo]);
 
   const handleSelect = () => {
     onSelect(currentPath);
@@ -140,9 +228,18 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({
             {/* Breadcrumb navigation */}
             <Breadcrumb separator={<ChevronRightIcon />} fontSize="sm">
               {getBreadcrumbItems().map((item, index) => (
-                <BreadcrumbItem key={item.path}>
+                <BreadcrumbItem key={item.path || 'drives'}>
                   <BreadcrumbLink
-                    onClick={() => loadDirectory(item.path)}
+                    onClick={() => {
+                      if (item.path === '' && defaultDirInfo?.platform === 'win32') {
+                        // Navigate to drives view
+                        setCurrentPath('');
+                        setManualPath('');
+                        setEntries([]);
+                      } else if (item.path) {
+                        loadDirectory(item.path);
+                      }
+                    }}
                     cursor="pointer"
                     _hover={{ textDecoration: 'underline' }}
                   >
@@ -175,7 +272,8 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({
               ) : (
                 <VStack spacing={1} align="stretch">
                   {/* Parent directory option */}
-                  {currentPath !== '/' && (
+                  {((defaultDirInfo?.platform === 'win32' && currentPath.split(/[\\/]/).filter(Boolean).length > 1) ||
+                    (defaultDirInfo?.platform !== 'win32' && currentPath !== '/')) && (
                     <Box
                       p={2}
                       borderRadius="md"
@@ -189,6 +287,26 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({
                       </HStack>
                     </Box>
                   )}
+                  
+                  {/* Windows drives list when at root */}
+                  {defaultDirInfo?.platform === 'win32' && 
+                   currentPath === '' && 
+                   defaultDirInfo.drives && 
+                   defaultDirInfo.drives.map((drive) => (
+                    <Box
+                      key={drive}
+                      p={2}
+                      borderRadius="md"
+                      cursor="pointer"
+                      _hover={{ bg: bgHover }}
+                      onDoubleClick={() => loadDirectory(drive + '\\')}
+                    >
+                      <HStack spacing={2}>
+                        <Text color="blue.500">💾</Text>
+                        <Text fontSize="sm">{drive} Drive</Text>
+                      </HStack>
+                    </Box>
+                  ))}
                   
                   {/* Directory entries */}
                   {entries.length === 0 ? (

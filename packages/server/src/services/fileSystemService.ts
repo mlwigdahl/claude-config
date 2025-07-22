@@ -1,5 +1,6 @@
 import { ConsolidatedFileSystem } from '@claude-config/core';
 import * as path from 'path';
+import * as os from 'os';
 import { minimatch } from 'minimatch';
 import { createError } from '../middleware/errorHandler.js';
 import { getLogger } from '@claude-config/core';
@@ -60,6 +61,13 @@ export interface FilteredFileTreeResult {
     command: number;
   };
   projectRootPath: string;
+}
+
+export interface DefaultDirectoryResult {
+  defaultDirectory: string;
+  homeDirectory: string;
+  platform: string;
+  drives?: string[];
 }
 
 export class FileSystemService {
@@ -1520,5 +1528,100 @@ export class FileSystemService {
     }
 
     return commandsNode;
+  }
+
+  /**
+   * Get default directory for the platform (cross-platform home directory detection)
+   */
+  async getDefaultDirectory(): Promise<DefaultDirectoryResult> {
+    const platform = process.platform;
+    const homeDir = os.homedir();
+    
+    try {
+      let defaultDirectory = homeDir;
+      let drives: string[] = [];
+
+      if (platform === 'win32') {
+        // On Windows, get available drives
+        drives = await this.getWindowsDrives();
+        
+        // Default to user's home directory or Documents if it exists
+        const documentsPath = path.join(homeDir, 'Documents');
+        try {
+          const documentsStats = await ConsolidatedFileSystem.getFileStats(documentsPath);
+          if (documentsStats.exists && documentsStats.isDirectory) {
+            defaultDirectory = documentsPath;
+          }
+        } catch (_error) {
+          // If Documents doesn't exist, use home directory
+          defaultDirectory = homeDir;
+        }
+      } else {
+        // On macOS/Linux, check common directories
+        const commonPaths = [
+          path.join(homeDir, 'Documents'),
+          path.join(homeDir, 'Desktop'),
+          homeDir
+        ];
+
+        for (const testPath of commonPaths) {
+          try {
+            const stats = await ConsolidatedFileSystem.getFileStats(testPath);
+            if (stats.exists && stats.isDirectory) {
+              defaultDirectory = testPath;
+              break;
+            }
+          } catch (_error) {
+            // Continue to next path
+            continue;
+          }
+        }
+      }
+
+      logger.debug(`Default directory for platform ${platform}: ${defaultDirectory}`);
+      
+      return {
+        defaultDirectory,
+        homeDirectory: homeDir,
+        platform,
+        drives: drives.length > 0 ? drives : undefined,
+      };
+    } catch (error: any) {
+      logger.error(`Failed to get default directory: ${error.message}`);
+      throw createError(`Failed to get default directory: ${error.message}`, 500);
+    }
+  }
+
+  /**
+   * Get available Windows drives
+   */
+  private async getWindowsDrives(): Promise<string[]> {
+    if (process.platform !== 'win32') {
+      return [];
+    }
+
+    try {
+      // Common Windows drive letters
+      const possibleDrives = ['C:', 'D:', 'E:', 'F:', 'G:', 'H:', 'I:', 'J:', 'K:', 'L:', 'M:', 'N:', 'O:', 'P:', 'Q:', 'R:', 'S:', 'T:', 'U:', 'V:', 'W:', 'X:', 'Y:', 'Z:'];
+      const availableDrives: string[] = [];
+
+      for (const drive of possibleDrives) {
+        try {
+          const driveRoot = drive + '\\';
+          const stats = await ConsolidatedFileSystem.getFileStats(driveRoot);
+          if (stats.exists && stats.isDirectory) {
+            availableDrives.push(drive);
+          }
+        } catch (_error) {
+          // Drive doesn't exist or is not accessible
+          continue;
+        }
+      }
+
+      return availableDrives;
+    } catch (_error) {
+      logger.debug('Failed to get Windows drives, returning empty array');
+      return [];
+    }
   }
 }

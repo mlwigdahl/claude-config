@@ -127,7 +127,7 @@ const ProjectTree: React.FC = () => {
           isOpen={showDirectoryBrowser}
           onClose={closeDirectoryBrowser}
           onSelect={selectProjectRoot}
-          initialPath={projectRoot || '/Users'}
+          initialPath={projectRoot}
         />
       )}
     </Box>

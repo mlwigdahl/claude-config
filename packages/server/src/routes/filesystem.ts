@@ -389,4 +389,26 @@ router.get(
   }
 );
 
+// Get default directory (cross-platform home directory)
+router.get(
+  '/default-directory',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const defaultDir = await fileSystemService.getDefaultDirectory();
+
+      res.json({
+        success: true,
+        data: {
+          defaultDirectory: defaultDir.defaultDirectory,
+          homeDirectory: defaultDir.homeDirectory,
+          platform: defaultDir.platform,
+          drives: defaultDir.drives,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export { router as filesystemRouter };

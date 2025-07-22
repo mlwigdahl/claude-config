@@ -12,7 +12,7 @@
     "dev:core": "npm run dev --workspace=@claude-config/core",
     "dev:server": "npm run dev --workspace=@claude-config/server",
     "dev:app": "npm run dev --workspace=@claude-config/app",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspace=@claude-config/shared && npm run build --workspace=@claude-config/core && npm run build --workspace=@claude-config/server && npm run build --workspace=@claude-config/app",
     "build:core": "npm run build --workspace=@claude-config/core",
     "build:server": "npm run build --workspace=@claude-config/server",
     "build:app": "npm run build --workspace=@claude-config/app",
@@ -33,7 +33,7 @@
     "format": "prettier --write packages/*/src/**/*.{ts,tsx}",
     "format:check": "prettier --check packages/*/src/**/*.{ts,tsx}",
     "clean": "npm run clean --workspaces",
-    "start": "npm run start --workspace=@claude-config/server",
+    "start": "concurrently \"npm run start --workspace=@claude-config/server\" \"npm run preview --workspace=@claude-config/app\"",
     "preview": "npm run preview --workspace=@claude-config/app"
   },
   "keywords": [
@@ -49,10 +49,12 @@
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
     "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.5",
-    "jest": "^30.0.4",
+    "jest": "^30.0.5",
     "prettier": "^3.6.2",
+    "rimraf": "^6.0.1",
     "ts-jest": "^29.4.0"
   }
 }

@@ -9,14 +9,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "node --loader ts-node/esm src/index.ts",
-    "test": "NODE_ENV=test jest",
-    "test:watch": "NODE_ENV=test jest --watch",
-    "test:coverage": "NODE_ENV=test jest --coverage",
+    "test": "cross-env NODE_ENV=test jest",
+    "test:watch": "cross-env NODE_ENV=test jest --watch",
+    "test:coverage": "cross-env NODE_ENV=test jest --coverage",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",
     "format:check": "prettier --check src/**/*.ts",
-    "clean": "rm -rf dist"
+    "clean": "rimraf dist"
   },
   "keywords": ["claude", "configuration", "management"],
   "author": "Matt Wigdahl <mlwigdahl@gmail.com>",
@@ -27,14 +27,16 @@
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
+    "cross-env": "^7.0.3",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.0.13",
     "@typescript-eslint/eslint-plugin": "^8.37.0",
     "@typescript-eslint/parser": "^8.37.0",
     "eslint": "^9.31.0",
     "eslint-config-prettier": "^10.1.5",
-    "jest": "^30.0.4",
+    "jest": "^30.0.5",
     "prettier": "^3.6.2",
+    "rimraf": "^6.0.1",
     "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

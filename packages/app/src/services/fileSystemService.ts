@@ -26,6 +26,13 @@ export interface DirectoryEntry {
   isValid?: boolean;
 }
 
+export interface DefaultDirectoryInfo {
+  defaultDirectory: string;
+  homeDirectory: string;
+  platform: string;
+  drives?: string[];
+}
+
 export interface FileTreeNodeServer {
   name: string;
   path: string;
@@ -48,6 +55,25 @@ export class FileSystemService {
       return response.ok;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Get default directory for the current platform
+   */
+  static async getDefaultDirectory(): Promise<DefaultDirectoryInfo> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/filesystem/default-directory`);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to get default directory');
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      throw new Error(`Failed to get default directory: ${(error as Error).message}`);
     }
   }
 
