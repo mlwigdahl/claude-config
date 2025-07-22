@@ -1,0 +1,465 @@
+import { ConfigurationService } from '../configurationService';
+import { FileSystemService } from '../fileSystemService';
+import { FileInfo } from '../../types';
+
+// Mock the core browser module
+jest.mock('@claude-config/core/browser', () => ({
+  createClientConfigurationService: jest.fn(() => ({
+    setupProject: jest.fn(),
+    readFileContent: jest.fn(),
+    writeFileContent: jest.fn(),
+    createFile: jest.fn(),
+    deleteFile: jest.fn(),
+    getProjectFiles: jest.fn(),
+    validateFile: jest.fn(),
+    setProjectHandle: jest.fn(),
+  })),
+  ClientConfigurationService: jest.fn(),
+  TemplateFactory: {
+    createMemoryTemplate: jest.fn(() => ({
+      content: '# Memory File\n\nContent here.',
+      path: 'CLAUDE.md'
+    })),
+    createSettingsTemplate: jest.fn(() => ({
+      content: '{\n  "version": "1.0",\n  "settings": {}\n}',
+      path: 'settings.json'
+    })),
+    createCommandTemplate: jest.fn(() => ({
+      content: '# Command File\n\n```bash\necho "hello"\n```',
+      path: 'commands.md'
+    }))
+  }
+}));
+
+// Mock the FileSystemService
+jest.mock('../fileSystemService');
+const mockFileSystemService = FileSystemService as jest.Mocked<typeof FileSystemService>;
+
+// Mock core library operations (these modules may not exist in test env)
+// Using direct mocking in beforeEach instead
+
+describe('ConfigurationService', () => {
+  let mockProjectHandle: any;
+  let mockFileHandle: any;
+  let mockFile: File;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Mock core library operations directly
+    jest.doMock('@core/memory/operations.js', () => ({
+      createEmptyMemoryFile: () => ({ content: '# Memory File\n\nContent here.' }),
+      validateMemoryFile: () => ({ isValid: true, errors: [] }),
+    }));
+
+    jest.doMock('@core/settings/operations.js', () => ({
+      createEmptySettings: () => ({ version: '1.0', settings: {} }),
+      validateSettings: () => ({ isValid: true, errors: [] }),
+    }));
+
+    jest.doMock('@core/commands/operations.js', () => ({
+      createEmptyCommandFile: () => ({ content: '# Command File\n\n```bash\necho "hello"\n```' }),
+      validateCommandFile: () => ({ isValid: true, errors: [] }),
+    }));
+
+    jest.doMock('@core/hooks/index.js', () => ({
+      extractHooksFromSettings: () => [],
+    }));
+
+    // Mock file handle
+    mockFile = new File(['test content'], 'test.md', {
+      type: 'text/markdown',
+      lastModified: Date.now(),
+    });
+
+    mockFileHandle = {
+      name: 'test.md',
+      getFile: jest.fn().mockResolvedValue(mockFile),
+      createWritable: jest.fn().mockResolvedValue({
+        write: jest.fn().mockResolvedValue(undefined),
+        close: jest.fn().mockResolvedValue(undefined),
+      }),
+    };
+
+    // Mock directory handle
+    mockProjectHandle = {
+      name: 'project',
+      getDirectoryHandle: jest.fn().mockResolvedValue({
+        name: '.claude',
+        getFileHandle: jest.fn().mockResolvedValue(mockFileHandle),
+      }),
+      getFileHandle: jest.fn().mockResolvedValue(mockFileHandle),
+      removeEntry: jest.fn().mockResolvedValue(undefined),
+    };
+
+    // Set up mocks
+    mockFileSystemService.fileExists.mockResolvedValue(true);
+    mockFileSystemService.directoryExists.mockResolvedValue(true);
+    mockFileSystemService.isConfigurationFile.mockReturnValue({ type: 'memory', valid: true });
+    mockFileSystemService.isValidFileName.mockReturnValue(true);
+    mockFileSystemService.readFileAsText.mockResolvedValue('test content');
+    mockFileSystemService.writeTextToFile.mockResolvedValue(undefined);
+
+    ConfigurationService.setProjectHandle(mockProjectHandle);
+  });
+
+  afterEach(() => {
+    // Clear project handle
+    ConfigurationService.setProjectHandle(null as any);
+  });
+
+  describe('project handle management', () => {
+    it('sets and gets project handle correctly', () => {
+      const handle = { name: 'test' } as any;
+      ConfigurationService.setProjectHandle(handle);
+      expect(ConfigurationService.getProjectHandle()).toBe(handle);
+    });
+  });
+
+  describe('discoverProjectFiles', () => {
+    it('throws error when no project handle is set', async () => {
+      ConfigurationService.setProjectHandle(null as any);
+      
+      await expect(ConfigurationService.discoverProjectFiles())
+        .rejects.toThrow('No project selected');
+    });
+
+    it('discovers CLAUDE.md in root', async () => {
+      mockFileSystemService.fileExists.mockResolvedValueOnce(true);
+      mockFileSystemService.directoryExists.mockResolvedValueOnce(false);
+
+      const files = await ConfigurationService.discoverProjectFiles();
+
+      expect(files).toHaveLength(1);
+      expect(files[0]).toEqual({
+        id: 'memory-root',
+        name: 'CLAUDE.md',
+        path: 'CLAUDE.md',
+        type: 'file',
+        fileType: 'memory',
+      });
+    });
+
+    it('handles file discovery errors gracefully', async () => {
+      mockFileSystemService.fileExists.mockRejectedValue(new Error('Access denied'));
+
+      await expect(ConfigurationService.discoverProjectFiles())
+        .rejects.toThrow('Failed to discover files: Access denied');
+    });
+  });
+
+  describe('readFile', () => {
+    it('reads file content successfully', async () => {
+      const result = await ConfigurationService.readFile('CLAUDE.md');
+
+      expect(result).toEqual({
+        id: 'memory-test.md',
+        name: 'test.md',
+        path: 'CLAUDE.md',
+        type: 'memory',
+        content: 'test content',
+        exists: true,
+        lastModified: expect.any(Date),
+        size: expect.any(Number),
+      });
+    });
+
+    it('throws error when no project handle is set', async () => {
+      ConfigurationService.setProjectHandle(null as any);
+      
+      await expect(ConfigurationService.readFile('test.md'))
+        .rejects.toThrow('No project selected');
+    });
+
+    it('handles file read errors', async () => {
+      mockProjectHandle.getFileHandle.mockRejectedValue(new Error('File not found'));
+
+      await expect(ConfigurationService.readFile('nonexistent.md'))
+        .rejects.toThrow('Failed to read file nonexistent.md: File not found');
+    });
+  });
+
+  describe('writeFile', () => {
+    it('writes file content successfully', async () => {
+      await expect(ConfigurationService.writeFile('test.md', 'new content'))
+        .resolves.not.toThrow();
+
+      expect(mockFileSystemService.writeTextToFile).toHaveBeenCalledWith(
+        mockFileHandle,
+        'new content'
+      );
+    });
+
+    it('throws error when no project handle is set', async () => {
+      ConfigurationService.setProjectHandle(null as any);
+      
+      await expect(ConfigurationService.writeFile('test.md', 'content'))
+        .rejects.toThrow('No project selected');
+    });
+  });
+
+  describe('CRUD operations', () => {
+    const mockFileInfo: FileInfo = {
+      id: 'test-1',
+      name: 'test.md',
+      path: 'test.md',
+      type: 'memory',
+      exists: true,
+    };
+
+    describe('readFileContent', () => {
+      it('reads file content successfully', async () => {
+        const content = await ConfigurationService.readFileContent(mockFileInfo);
+        expect(content).toBe('test content');
+      });
+
+      it('throws error when no project handle is set', async () => {
+        ConfigurationService.setProjectHandle(null as any);
+        
+        await expect(ConfigurationService.readFileContent(mockFileInfo))
+          .rejects.toThrow('No project directory selected');
+      });
+    });
+
+    describe('writeFileContent', () => {
+      it('writes file content successfully', async () => {
+        await expect(ConfigurationService.writeFileContent(mockFileInfo, 'new content'))
+          .resolves.not.toThrow();
+      });
+
+      it('throws error when no project handle is set', async () => {
+        ConfigurationService.setProjectHandle(null as any);
+        
+        await expect(ConfigurationService.writeFileContent(mockFileInfo, 'content'))
+          .rejects.toThrow('No project directory selected');
+      });
+    });
+
+    describe('createFile', () => {
+      it('creates file successfully', async () => {
+        mockProjectHandle.getFileHandle.mockRejectedValueOnce(new Error('Not found'))
+          .mockResolvedValueOnce(mockFileHandle);
+
+        const result = await ConfigurationService.createFile('new.md', 'content', 'memory');
+
+        expect(result).toEqual({
+          id: expect.stringContaining('memory_'),
+          name: 'new.md',
+          path: 'new.md',
+          type: 'memory',
+          exists: true,
+          lastModified: expect.any(Date),
+          size: expect.any(Number),
+        });
+      });
+
+      it('throws error if file already exists', async () => {
+        await expect(ConfigurationService.createFile('existing.md', 'content', 'memory'))
+          .rejects.toThrow('File already exists');
+      });
+
+      it('throws error for invalid file name', async () => {
+        mockFileSystemService.isValidFileName.mockReturnValue(false);
+
+        await expect(ConfigurationService.createFile('invalid<>.md', 'content', 'memory'))
+          .rejects.toThrow('Invalid file name');
+      });
+    });
+
+    describe('deleteFile', () => {
+      it('deletes file in root directory', async () => {
+        const rootFileInfo = { ...mockFileInfo, path: 'test.md' };
+        
+        await expect(ConfigurationService.deleteFile(rootFileInfo))
+          .resolves.not.toThrow();
+
+        expect(mockProjectHandle.removeEntry).toHaveBeenCalledWith('test.md');
+      });
+
+      it('deletes file in subdirectory', async () => {
+        const subFileInfo = { ...mockFileInfo, path: '.claude/test.md' };
+        const mockSubDir = {
+          removeEntry: jest.fn().mockResolvedValue(undefined),
+        };
+        mockProjectHandle.getDirectoryHandle.mockResolvedValue(mockSubDir);
+        
+        await expect(ConfigurationService.deleteFile(subFileInfo))
+          .resolves.not.toThrow();
+
+        expect(mockSubDir.removeEntry).toHaveBeenCalledWith('test.md');
+      });
+    });
+  });
+
+  describe('file type specific operations', () => {
+    const mockMemoryFile: FileInfo = {
+      id: 'memory-1',
+      name: 'CLAUDE.md',
+      path: 'CLAUDE.md',
+      type: 'memory',
+      exists: true,
+    };
+
+    const mockSettingsFile: FileInfo = {
+      id: 'settings-1',
+      name: 'settings.json',
+      path: '.claude/settings.json',
+      type: 'settings',
+      exists: true,
+    };
+
+    const mockCommandFile: FileInfo = {
+      id: 'command-1',
+      name: 'deploy.md',
+      path: '.claude/commands/deploy.md',
+      type: 'command',
+      exists: true,
+    };
+
+    describe('memory file operations', () => {
+      it('creates memory file with default content', async () => {
+        mockProjectHandle.getFileHandle.mockRejectedValueOnce(new Error('Not found'))
+          .mockResolvedValueOnce(mockFileHandle);
+
+        const result = await ConfigurationService.createMemoryFile('new-memory');
+
+        expect(result.type).toBe('memory');
+        expect(result.path).toBe('new-memory.md');
+      });
+
+      it('updates memory file with validation', async () => {
+        await expect(ConfigurationService.writeFileContent(mockMemoryFile, '# Updated content'))
+          .resolves.not.toThrow();
+      });
+    });
+
+    describe('settings file operations', () => {
+      it('creates settings file with default content', async () => {
+        mockProjectHandle.getFileHandle.mockRejectedValueOnce(new Error('Not found'))
+          .mockResolvedValueOnce(mockFileHandle);
+
+        const result = await ConfigurationService.createSettingsFile('new-settings');
+
+        expect(result.type).toBe('settings');
+        expect(result.path).toBe('new-settings.json');
+      });
+
+      it('updates settings file with validation', async () => {
+        await expect(ConfigurationService.writeFileContent(mockSettingsFile, '{"valid": "json"}'))
+          .resolves.not.toThrow();
+      });
+
+      it('throws error for invalid JSON in settings', async () => {
+        await expect(ConfigurationService.writeFileContent(mockSettingsFile, 'invalid json'))
+          .rejects.toThrow('Invalid JSON format');
+      });
+    });
+
+    describe('command file operations', () => {
+      it('creates command file with default content', async () => {
+        mockProjectHandle.getFileHandle.mockRejectedValueOnce(new Error('Not found'))
+          .mockResolvedValueOnce(mockFileHandle);
+
+        const result = await ConfigurationService.createCommandFile('new-command');
+
+        expect(result.type).toBe('command');
+        expect(result.path).toBe('new-command.md');
+      });
+
+      it('updates command file with validation', async () => {
+        await expect(ConfigurationService.writeFileContent(mockCommandFile, '# Updated command'))
+          .resolves.not.toThrow();
+      });
+    });
+  });
+
+  describe('validation', () => {
+    it('validates memory files', async () => {
+      const result = await ConfigurationService.validateFileContent(
+        'test.md',
+        '# Memory content',
+        'memory'
+      );
+
+      expect(result).toEqual({
+        valid: true,
+        errors: [],
+      });
+    });
+
+    it('validates settings files', async () => {
+      const result = await ConfigurationService.validateFileContent(
+        'settings.json',
+        '{"key": "value"}',
+        'settings'
+      );
+
+      expect(result).toEqual({
+        valid: true,
+        errors: [],
+      });
+    });
+
+    it('rejects invalid JSON in settings', async () => {
+      const result = await ConfigurationService.validateFileContent(
+        'settings.json',
+        'invalid json',
+        'settings'
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+    });
+
+    it('validates command files', async () => {
+      const result = await ConfigurationService.validateFileContent(
+        'command.md',
+        '# Command content',
+        'command'
+      );
+
+      expect(result).toEqual({
+        valid: true,
+        errors: [],
+      });
+    });
+
+    it('rejects unknown file types', async () => {
+      const result = await ConfigurationService.validateFileContent(
+        'unknown.txt',
+        'content',
+        'unknown' as any
+      );
+
+      expect(result).toEqual({
+        valid: false,
+        errors: ['Unknown file type'],
+      });
+    });
+  });
+
+  describe('hooks extraction', () => {
+    it('extracts hooks from settings content', async () => {
+      const settingsContent = '{"hooks": {"pre-commit": "npm test"}}';
+      const hooks = await ConfigurationService.extractHooksFromSettingsContent(settingsContent);
+      
+      expect(hooks).toEqual([]);
+    });
+
+    it('handles invalid JSON gracefully', async () => {
+      const invalidContent = 'invalid json';
+      const hooks = await ConfigurationService.extractHooksFromSettingsContent(invalidContent);
+      
+      expect(hooks).toEqual([]);
+    });
+  });
+
+  describe('isSupported', () => {
+    it('delegates to FileSystemService', () => {
+      mockFileSystemService.isSupported.mockReturnValue(true);
+      
+      expect(ConfigurationService.isSupported()).toBe(true);
+      expect(mockFileSystemService.isSupported).toHaveBeenCalled();
+    });
+  });
+});

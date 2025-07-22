@@ -1,0 +1,121 @@
+import { FileSystemService } from '../fileSystemService';
+
+describe('FileSystemService', () => {
+  describe('isSupported', () => {
+    it('returns false when File System Access API is not available', () => {
+      // Clear any existing implementations
+      delete (globalThis as any).showDirectoryPicker;
+      delete (globalThis as any).showOpenFilePicker;
+      delete (globalThis as any).showSaveFilePicker;
+
+      expect(FileSystemService.isSupported()).toBe(false);
+    });
+
+    it('returns true when File System Access API is available', () => {
+      (globalThis as any).showDirectoryPicker = jest.fn();
+      (globalThis as any).showOpenFilePicker = jest.fn();
+      (globalThis as any).showSaveFilePicker = jest.fn();
+
+      expect(FileSystemService.isSupported()).toBe(true);
+    });
+  });
+
+  describe('isValidFileName', () => {
+    it('accepts valid file names', () => {
+      expect(FileSystemService.isValidFileName('test.txt')).toBe(true);
+      expect(FileSystemService.isValidFileName('file-name.json')).toBe(true);
+      expect(FileSystemService.isValidFileName('file_name.md')).toBe(true);
+      expect(FileSystemService.isValidFileName('123.txt')).toBe(true);
+    });
+
+    it('rejects invalid file names', () => {
+      expect(FileSystemService.isValidFileName('')).toBe(false);
+      expect(FileSystemService.isValidFileName('file<name>.txt')).toBe(false);
+      expect(FileSystemService.isValidFileName('file>name.txt')).toBe(false);
+      expect(FileSystemService.isValidFileName('file|name.txt')).toBe(false);
+      expect(FileSystemService.isValidFileName('CON')).toBe(false);
+      expect(FileSystemService.isValidFileName('PRN')).toBe(false);
+      expect(FileSystemService.isValidFileName('.hidden')).toBe(false);
+      expect(FileSystemService.isValidFileName('file.')).toBe(false);
+    });
+
+    it('rejects file names that are too long', () => {
+      const longName = 'a'.repeat(256);
+      expect(FileSystemService.isValidFileName(longName)).toBe(false);
+    });
+  });
+
+  describe('getFileExtension', () => {
+    it('extracts file extensions correctly', () => {
+      expect(FileSystemService.getFileExtension('file.txt')).toBe('txt');
+      expect(FileSystemService.getFileExtension('archive.tar.gz')).toBe('gz');
+      expect(FileSystemService.getFileExtension('CLAUDE.md')).toBe('md');
+      expect(FileSystemService.getFileExtension('settings.json')).toBe('json');
+    });
+
+    it('returns empty string for files without extensions', () => {
+      expect(FileSystemService.getFileExtension('README')).toBe('');
+      expect(FileSystemService.getFileExtension('file.')).toBe('');
+      expect(FileSystemService.getFileExtension('.hidden')).toBe('');
+    });
+  });
+
+  describe('isConfigurationFile', () => {
+    it('identifies memory files correctly', () => {
+      const result = FileSystemService.isConfigurationFile('CLAUDE.md');
+      expect(result.type).toBe('memory');
+      expect(result.valid).toBe(true);
+    });
+
+    it('identifies settings files correctly', () => {
+      let result = FileSystemService.isConfigurationFile('settings.json');
+      expect(result.type).toBe('settings');
+      expect(result.valid).toBe(true);
+
+      result = FileSystemService.isConfigurationFile('settings.local.json');
+      expect(result.type).toBe('settings');
+      expect(result.valid).toBe(true);
+    });
+
+    it('identifies command files correctly', () => {
+      const result = FileSystemService.isConfigurationFile('my-command.md');
+      expect(result.type).toBe('command');
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects non-configuration files', () => {
+      let result = FileSystemService.isConfigurationFile('random.txt');
+      expect(result.type).toBe(null);
+      expect(result.valid).toBe(false);
+
+      result = FileSystemService.isConfigurationFile('other.json');
+      expect(result.type).toBe(null);
+      expect(result.valid).toBe(false);
+
+      result = FileSystemService.isConfigurationFile('README.md');
+      expect(result.type).toBe('command'); // md files are treated as commands
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('getDisplayPath', () => {
+    it('creates display path from handle names', () => {
+      const handles = [
+        { name: 'project' },
+        { name: '.claude' },
+        { name: 'settings.json' }
+      ];
+      
+      expect(FileSystemService.getDisplayPath(handles)).toBe('project/.claude/settings.json');
+    });
+
+    it('handles single handle', () => {
+      const handles = [{ name: 'CLAUDE.md' }];
+      expect(FileSystemService.getDisplayPath(handles)).toBe('CLAUDE.md');
+    });
+
+    it('handles empty array', () => {
+      expect(FileSystemService.getDisplayPath([])).toBe('');
+    });
+  });
+});

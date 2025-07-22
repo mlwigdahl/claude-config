@@ -1,0 +1,58 @@
+{
+  "name": "claude-config",
+  "version": "1.0.0",
+  "description": "Claude Configuration Manager - Workspace for core library, server, and frontend",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=@claude-config/server\" \"npm run dev --workspace=@claude-config/app\"",
+    "dev:core": "npm run dev --workspace=@claude-config/core",
+    "dev:server": "npm run dev --workspace=@claude-config/server",
+    "dev:app": "npm run dev --workspace=@claude-config/app",
+    "build": "npm run build --workspaces",
+    "build:core": "npm run build --workspace=@claude-config/core",
+    "build:server": "npm run build --workspace=@claude-config/server",
+    "build:app": "npm run build --workspace=@claude-config/app",
+    "test": "jest --config=testing/jest.config.js",
+    "test:core": "jest --config=testing/jest.core.config.js",
+    "test:server": "jest --config=testing/jest.server.config.js",
+    "test:app": "jest --config=testing/jest.app.config.js",
+    "test:watch": "jest --config=testing/jest.config.js --watch",
+    "test:watch:core": "jest --config=testing/jest.core.config.js --watch",
+    "test:watch:server": "jest --config=testing/jest.server.config.js --watch",
+    "test:watch:app": "jest --config=testing/jest.app.config.js --watch",
+    "test:coverage": "jest --config=testing/jest.config.js --coverage",
+    "test:coverage:core": "jest --config=testing/jest.core.config.js --coverage",
+    "test:coverage:server": "jest --config=testing/jest.server.config.js --coverage",
+    "test:coverage:app": "jest --config=testing/jest.app.config.js --coverage",
+    "lint": "eslint packages/*/src/**/*.{ts,tsx}",
+    "lint:fix": "eslint packages/*/src/**/*.{ts,tsx} --fix",
+    "format": "prettier --write packages/*/src/**/*.{ts,tsx}",
+    "format:check": "prettier --check packages/*/src/**/*.{ts,tsx}",
+    "clean": "npm run clean --workspaces",
+    "start": "npm run start --workspace=@claude-config/server",
+    "preview": "npm run preview --workspace=@claude-config/app"
+  },
+  "keywords": [
+    "claude",
+    "configuration",
+    "manager",
+    "workspace"
+  ],
+  "author": "Matt Wigdahl <mlwigdahl@gmail.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
+    "concurrently": "^8.2.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.5",
+    "jest": "^30.0.4",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.0"
+  }
+}

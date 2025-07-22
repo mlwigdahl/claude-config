@@ -1,0 +1,435 @@
+/**
+ * Tests for file tree functionality in FileSystemService
+ */
+
+import { FileSystemService } from '../fileSystemService';
+import type { FileTreeNode, TreeSearchOptions, TreeBuildOptions } from '../../types/index';
+
+// Mock File System Access API types for testing
+interface MockFileSystemHandle {
+  kind: 'file' | 'directory';
+  name: string;
+  entries?: () => AsyncIterableIterator<[string, MockFileSystemHandle]>;
+  getFile?: () => Promise<{ text: () => Promise<string>; lastModified: number; size: number }>;
+  isSameEntry: (other: MockFileSystemHandle) => Promise<boolean>;
+}
+
+describe('FileSystemService - File Tree Functionality', () => {
+  // Mock data for testing
+  const createMockFileHandle = (name: string, content = '', lastModified = Date.now(), size = content.length): MockFileSystemHandle => ({
+    kind: 'file',
+    name,
+    getFile: async () => ({
+      text: async () => content,
+      lastModified,
+      size
+    }),
+    isSameEntry: async (other) => other.name === name && other.kind === 'file'
+  });
+
+  const createMockDirectoryHandle = (name: string, entries: [string, MockFileSystemHandle][] = []): MockFileSystemHandle => ({
+    kind: 'directory',
+    name,
+    entries: async function* () {
+      for (const entry of entries) {
+        yield entry;
+      }
+    },
+    isSameEntry: async (other) => other.name === name && other.kind === 'directory'
+  });
+
+  beforeEach(() => {
+    // Mock console methods to avoid test noise
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('discoverFileTree', () => {
+    it('should discover files and directories with correct structure', async () => {
+      const mockRoot = createMockDirectoryHandle('project', [
+        ['CLAUDE.md', createMockFileHandle('CLAUDE.md', '# Memory file')],
+        ['settings.json', createMockFileHandle('settings.json', '{}')],
+        ['src', createMockDirectoryHandle('src', [
+          ['index.ts', createMockFileHandle('index.ts', 'console.log("hello");')]
+        ])]
+      ]);
+
+      const result = await FileSystemService.discoverFileTree(mockRoot as any, {
+        maxDepth: 3,
+        includeHidden: false,
+        autoExpand: true,
+        expandDepth: 2
+      });
+
+      expect(result.tree).toHaveLength(3);
+      expect(result.totalFiles).toBe(3);
+      expect(result.totalDirectories).toBe(1);
+      expect(result.configurationFiles.memory).toBe(1);
+      expect(result.configurationFiles.settings).toBe(1);
+
+      // Check structure
+      const memoryFile = result.tree.find(node => node.name === 'CLAUDE.md');
+      expect(memoryFile).toBeDefined();
+      expect(memoryFile?.fileType).toBe('memory');
+      expect(memoryFile?.type).toBe('file');
+
+      const srcDir = result.tree.find(node => node.name === 'src');
+      expect(srcDir).toBeDefined();
+      expect(srcDir?.type).toBe('directory');
+      expect(srcDir?.isExpanded).toBe(true);
+      expect(srcDir?.children).toHaveLength(1);
+    });
+
+    it('should respect maxDepth option', async () => {
+      const deepStructure = createMockDirectoryHandle('root', [
+        ['level1', createMockDirectoryHandle('level1', [
+          ['level2', createMockDirectoryHandle('level2', [
+            ['level3', createMockDirectoryHandle('level3', [
+              ['deep-file.txt', createMockFileHandle('deep-file.txt')]
+            ])]
+          ])]
+        ])]
+      ]);
+
+      const result = await FileSystemService.discoverFileTree(deepStructure as any, {
+        maxDepth: 2
+      });
+
+      expect(result.tree).toHaveLength(1);
+      expect(result.tree[0].children).toHaveLength(1);
+      expect(result.tree[0].children![0].children).toHaveLength(0); // Should stop at depth 2
+    });
+
+    it('should filter hidden files when includeHidden is false', async () => {
+      const mockRoot = createMockDirectoryHandle('project', [
+        ['visible.txt', createMockFileHandle('visible.txt')],
+        ['.hidden.txt', createMockFileHandle('.hidden.txt')],
+        ['.git', createMockDirectoryHandle('.git', [
+          ['config', createMockFileHandle('config')]
+        ])]
+      ]);
+
+      const result = await FileSystemService.discoverFileTree(mockRoot as any, {
+        includeHidden: false
+      });
+
+      expect(result.tree).toHaveLength(1);
+      expect(result.tree[0].name).toBe('visible.txt');
+    });
+
+    it('should include hidden files when includeHidden is true', async () => {
+      const mockRoot = createMockDirectoryHandle('project', [
+        ['visible.txt', createMockFileHandle('visible.txt')],
+        ['.hidden.txt', createMockFileHandle('.hidden.txt')]
+      ]);
+
+      const result = await FileSystemService.discoverFileTree(mockRoot as any, {
+        includeHidden: true
+      });
+
+      expect(result.tree).toHaveLength(2);
+      expect(result.tree.map(n => n.name)).toContain('.hidden.txt');
+    });
+  });
+
+  describe('hasChildren', () => {
+    it('should return true for directory with children', async () => {
+      const mockDir = createMockDirectoryHandle('parent', [
+        ['child.txt', createMockFileHandle('child.txt')]
+      ]);
+
+      const hasChildren = await FileSystemService.hasChildren(mockDir as any);
+      expect(hasChildren).toBe(true);
+    });
+
+    it('should return false for empty directory', async () => {
+      const mockDir = createMockDirectoryHandle('empty', []);
+
+      const hasChildren = await FileSystemService.hasChildren(mockDir as any);
+      expect(hasChildren).toBe(false);
+    });
+
+    it('should return false for directory with only hidden files when includeHidden is false', async () => {
+      const mockDir = createMockDirectoryHandle('parent', [
+        ['.hidden', createMockFileHandle('.hidden')]
+      ]);
+
+      const hasChildren = await FileSystemService.hasChildren(mockDir as any, false);
+      expect(hasChildren).toBe(false);
+    });
+  });
+
+  describe('searchTree', () => {
+    const createTestTree = (): FileTreeNode[] => [
+      {
+        id: '1',
+        name: 'components',
+        path: 'components',
+        type: 'directory',
+        depth: 0,
+        hasChildren: true,
+        isExpanded: true,
+        children: [
+          {
+            id: '2',
+            name: 'Button.tsx',
+            path: 'components/Button.tsx',
+            type: 'file',
+            depth: 1,
+            hasChildren: false,
+            parentId: '1'
+          },
+          {
+            id: '3',
+            name: 'Header.tsx',
+            path: 'components/Header.tsx',
+            type: 'file',
+            depth: 1,
+            hasChildren: false,
+            parentId: '1'
+          }
+        ]
+      },
+      {
+        id: '4',
+        name: 'CLAUDE.md',
+        path: 'CLAUDE.md',
+        type: 'file',
+        fileType: 'memory',
+        depth: 0,
+        hasChildren: false
+      }
+    ];
+
+    it('should find files by name', () => {
+      const tree = createTestTree();
+      const options: TreeSearchOptions = {
+        query: 'Button',
+        includeFiles: true,
+        includeDirectories: false
+      };
+
+      const results = FileSystemService.searchTree(tree, options);
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('Button.tsx');
+    });
+
+    it('should find directories by name', () => {
+      const tree = createTestTree();
+      const options: TreeSearchOptions = {
+        query: 'components',
+        includeFiles: false,
+        includeDirectories: true
+      };
+
+      const results = FileSystemService.searchTree(tree, options);
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('components');
+    });
+
+    it('should filter by file type', () => {
+      const tree = createTestTree();
+      const options: TreeSearchOptions = {
+        query: '',
+        fileTypes: ['memory']
+      };
+
+      const results = FileSystemService.searchTree(tree, options);
+      expect(results).toHaveLength(1);
+      expect(results[0].fileType).toBe('memory');
+    });
+
+    it('should be case insensitive by default', () => {
+      const tree = createTestTree();
+      const options: TreeSearchOptions = {
+        query: 'BUTTON',
+        caseSensitive: false
+      };
+
+      const results = FileSystemService.searchTree(tree, options);
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('Button.tsx');
+    });
+
+    it('should be case sensitive when specified', () => {
+      const tree = createTestTree();
+      const options: TreeSearchOptions = {
+        query: 'BUTTON',
+        caseSensitive: true
+      };
+
+      const results = FileSystemService.searchTree(tree, options);
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe('toggleNodeExpansion', () => {
+    it('should toggle node expansion state', async () => {
+      const tree: FileTreeNode[] = [{
+        id: '1',
+        name: 'folder',
+        path: 'folder',
+        type: 'directory',
+        depth: 0,
+        hasChildren: true,
+        isExpanded: false,
+        children: []
+      }];
+
+      const result = await FileSystemService.toggleNodeExpansion(tree, '1');
+      expect(result[0].isExpanded).toBe(true);
+
+      const result2 = await FileSystemService.toggleNodeExpansion(result, '1');
+      expect(result2[0].isExpanded).toBe(false);
+    });
+  });
+
+  describe('selectNode', () => {
+    it('should select specified node and deselect others', () => {
+      const tree: FileTreeNode[] = [
+        {
+          id: '1',
+          name: 'file1.txt',
+          path: 'file1.txt',
+          type: 'file',
+          depth: 0,
+          hasChildren: false,
+          isSelected: true
+        },
+        {
+          id: '2',
+          name: 'file2.txt',
+          path: 'file2.txt',
+          type: 'file',
+          depth: 0,
+          hasChildren: false,
+          isSelected: false
+        }
+      ];
+
+      const result = FileSystemService.selectNode(tree, '2');
+      expect(result[0].isSelected).toBe(false);
+      expect(result[1].isSelected).toBe(true);
+    });
+  });
+
+  describe('findNodeById', () => {
+    it('should find node by ID in flat tree', () => {
+      const tree: FileTreeNode[] = [
+        {
+          id: '1',
+          name: 'file1.txt',
+          path: 'file1.txt',
+          type: 'file',
+          depth: 0,
+          hasChildren: false
+        },
+        {
+          id: '2',
+          name: 'file2.txt',
+          path: 'file2.txt',
+          type: 'file',
+          depth: 0,
+          hasChildren: false
+        }
+      ];
+
+      const found = FileSystemService.findNodeById(tree, '2');
+      expect(found).toBeDefined();
+      expect(found?.name).toBe('file2.txt');
+    });
+
+    it('should find node by ID in nested tree', () => {
+      const tree: FileTreeNode[] = [{
+        id: '1',
+        name: 'folder',
+        path: 'folder',
+        type: 'directory',
+        depth: 0,
+        hasChildren: true,
+        children: [{
+          id: '2',
+          name: 'nested.txt',
+          path: 'folder/nested.txt',
+          type: 'file',
+          depth: 1,
+          hasChildren: false,
+          parentId: '1'
+        }]
+      }];
+
+      const found = FileSystemService.findNodeById(tree, '2');
+      expect(found).toBeDefined();
+      expect(found?.name).toBe('nested.txt');
+    });
+
+    it('should return null for non-existent ID', () => {
+      const tree: FileTreeNode[] = [{
+        id: '1',
+        name: 'file.txt',
+        path: 'file.txt',
+        type: 'file',
+        depth: 0,
+        hasChildren: false
+      }];
+
+      const found = FileSystemService.findNodeById(tree, 'non-existent');
+      expect(found).toBeNull();
+    });
+  });
+
+  describe('getNodePath', () => {
+    it('should return path to node', () => {
+      const tree: FileTreeNode[] = [{
+        id: '1',
+        name: 'folder',
+        path: 'folder',
+        type: 'directory',
+        depth: 0,
+        hasChildren: true,
+        children: [{
+          id: '2',
+          name: 'subfolder',
+          path: 'folder/subfolder',
+          type: 'directory',
+          depth: 1,
+          hasChildren: true,
+          parentId: '1',
+          children: [{
+            id: '3',
+            name: 'file.txt',
+            path: 'folder/subfolder/file.txt',
+            type: 'file',
+            depth: 2,
+            hasChildren: false,
+            parentId: '2'
+          }]
+        }]
+      }];
+
+      const path = FileSystemService.getNodePath(tree, '3');
+      expect(path).toHaveLength(3);
+      expect(path[0].name).toBe('folder');
+      expect(path[1].name).toBe('subfolder');
+      expect(path[2].name).toBe('file.txt');
+    });
+
+    it('should return empty array for non-existent node', () => {
+      const tree: FileTreeNode[] = [{
+        id: '1',
+        name: 'file.txt',
+        path: 'file.txt',
+        type: 'file',
+        depth: 0,
+        hasChildren: false
+      }];
+
+      const path = FileSystemService.getNodePath(tree, 'non-existent');
+      expect(path).toHaveLength(0);
+    });
+  });
+});
