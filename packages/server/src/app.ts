@@ -15,7 +15,17 @@ app.use(helmet());
 
 // CORS configuration - allow requests from React app
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests from any localhost port in development
+    if (!origin || origin.startsWith('http://localhost:')) {
+      callback(null, true);
+    } else if (process.env.CLIENT_URL && origin === process.env.CLIENT_URL) {
+      // Allow configured client URL in production
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
