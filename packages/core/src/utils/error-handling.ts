@@ -114,7 +114,7 @@ export interface OperationResult<T = any> {
  * Validation result interface
  */
 export interface ValidationResult {
-  isValid: boolean;
+  valid: boolean;
   errors: ErrorDetails[];
   warnings: string[];
 }
@@ -406,7 +406,7 @@ export class ErrorHandler {
     });
 
     return {
-      isValid: errorDetails.length === 0,
+      valid: errorDetails.length === 0,
       errors: errorDetails,
       warnings,
     };
@@ -449,6 +449,134 @@ export class ErrorHandler {
         logger.debug(`${details.message} [${details.code}]`, logContext);
         break;
     }
+  }
+}
+
+/**
+ * Convenience functions for common error scenarios
+ */
+export class ErrorFactory {
+  /**
+   * Create a file not found error
+   */
+  static fileNotFound(filePath: string, context?: Record<string, any>): ApplicationError {
+    return new ApplicationError({
+      message: `File not found: ${filePath}`,
+      code: ErrorCode.FILE_NOT_FOUND,
+      severity: ErrorSeverity.MEDIUM,
+      context: { filePath, ...context },
+    });
+  }
+
+  /**
+   * Create a file already exists error
+   */
+  static fileAlreadyExists(filePath: string, context?: Record<string, any>): ApplicationError {
+    return new ApplicationError({
+      message: `File already exists: ${filePath}`,
+      code: ErrorCode.FILE_ALREADY_EXISTS,
+      severity: ErrorSeverity.MEDIUM,
+      context: { filePath, ...context },
+    });
+  }
+
+  /**
+   * Create a validation failed error
+   */
+  static validationFailed(message: string, validationErrors: string[], context?: Record<string, any>): ApplicationError {
+    return new ApplicationError({
+      message,
+      code: ErrorCode.VALIDATION_FAILED,
+      severity: ErrorSeverity.MEDIUM,
+      context: { validationErrors, ...context },
+    });
+  }
+
+  /**
+   * Create an invalid path error
+   */
+  static invalidPath(path: string, reason: string, context?: Record<string, any>): ApplicationError {
+    return new ApplicationError({
+      message: `Invalid path: ${path}. ${reason}`,
+      code: ErrorCode.INVALID_PATH,
+      severity: ErrorSeverity.MEDIUM,
+      context: { path, reason, ...context },
+    });
+  }
+
+  /**
+   * Create a permission denied error
+   */
+  static permissionDenied(resource: string, operation: string, context?: Record<string, any>): ApplicationError {
+    return new ApplicationError({
+      message: `Permission denied: cannot ${operation} ${resource}`,
+      code: ErrorCode.PERMISSION_DENIED,
+      severity: ErrorSeverity.HIGH,
+      context: { resource, operation, ...context },
+    });
+  }
+
+  /**
+   * Create an invalid content error
+   */
+  static invalidContent(reason: string, context?: Record<string, any>): ApplicationError {
+    return new ApplicationError({
+      message: `Invalid content: ${reason}`,
+      code: ErrorCode.INVALID_CONTENT,
+      severity: ErrorSeverity.MEDIUM,
+      context: { reason, ...context },
+    });
+  }
+
+  /**
+   * Create an operation failed error with wrapped cause
+   */
+  static operationFailed(operation: string, cause: Error, context?: Record<string, any>): ApplicationError {
+    return new ApplicationError({
+      message: `Operation failed: ${operation}`,
+      code: ErrorCode.OPERATION_FAILED,
+      severity: ErrorSeverity.MEDIUM,
+      cause,
+      context: { operation, ...context },
+    });
+  }
+}
+
+/**
+ * Validation helpers
+ */
+export class ValidationFactory {
+  /**
+   * Create a standardized validation result for success
+   */
+  static success(warnings: string[] = []): { valid: boolean; errors: string[]; warnings: string[] } {
+    return {
+      valid: true,
+      errors: [],
+      warnings,
+    };
+  }
+
+  /**
+   * Create a standardized validation result for failure
+   */
+  static failure(errors: string[], warnings: string[] = []): { valid: boolean; errors: string[]; warnings: string[] } {
+    return {
+      valid: false,
+      errors,
+      warnings,
+    };
+  }
+
+  /**
+   * Create a standardized validation result with single error
+   */
+  static singleError(error: string, warnings: string[] = []): { valid: boolean; errors: string[]; warnings: string[] } {
+    return {
+      valid: false,
+      errors: [error],
+      warnings,
+    };
   }
 }
 

@@ -406,4 +406,109 @@ describe('Slash Command Operations', () => {
       expect(dirExists).toBe(false);
     });
   });
+
+  describe('Custom Directory Support', () => {
+    let customDir: string;
+
+    beforeEach(async () => {
+      customDir = path.join(tempDir, 'custom-location');
+      await fs.mkdir(customDir, { recursive: true });
+    });
+
+    it('should create command in custom directory', async () => {
+      const content = 'Custom directory command content';
+      
+      const result = await createSlashCommand(
+        projectRoot, 
+        'custom-cmd', 
+        content, 
+        undefined, 
+        {}, 
+        customDir
+      );
+      
+      if (!result.success) {
+        console.log('Creation failed:', result.message, result.error);
+      }
+      expect(result.success).toBe(true);
+      expect(result.commandPath).toBe(path.join(customDir, '.claude', 'commands', 'custom-cmd.md'));
+      
+      // Verify file was created in custom location
+      const expectedPath = path.join(customDir, '.claude', 'commands', 'custom-cmd.md');
+      const fileExists = await fs.access(expectedPath).then(() => true).catch(() => false);
+      expect(fileExists).toBe(true);
+      
+      // Verify content
+      const fileContent = await fs.readFile(expectedPath, 'utf-8');
+      expect(fileContent).toBe(content + '\n');
+    });
+
+    it('should update command in custom directory', async () => {
+      // First create the command
+      const originalContent = 'Original content';
+      await createSlashCommand(projectRoot, 'update-custom', originalContent, undefined, {}, customDir);
+      
+      // Then update it
+      const newContent = 'Updated custom command content';
+      const result = await updateSlashCommand(
+        projectRoot, 
+        'update-custom', 
+        newContent, 
+        undefined, 
+        {}, 
+        customDir
+      );
+      
+      expect(result.success).toBe(true);
+      
+      // Verify content was updated
+      const expectedPath = path.join(customDir, '.claude', 'commands', 'update-custom.md');
+      const fileContent = await fs.readFile(expectedPath, 'utf-8');
+      expect(fileContent).toBe(newContent + '\n');
+    });
+
+    it('should delete command from custom directory', async () => {
+      // First create the command
+      const content = 'Command to delete';
+      await createSlashCommand(projectRoot, 'delete-custom', content, undefined, {}, customDir);
+      
+      // Then delete it
+      const result = await deleteSlashCommand(
+        projectRoot, 
+        'delete-custom', 
+        undefined, 
+        {}, 
+        customDir
+      );
+      
+      expect(result.success).toBe(true);
+      
+      // Verify file was deleted
+      const expectedPath = path.join(customDir, '.claude', 'commands', 'delete-custom.md');
+      const fileExists = await fs.access(expectedPath).then(() => true).catch(() => false);
+      expect(fileExists).toBe(false);
+    });
+
+    it('should support namespaces in custom directories', async () => {
+      const content = 'Namespaced command in custom directory';
+      
+      const result = await createSlashCommand(
+        projectRoot, 
+        'namespaced-custom', 
+        content, 
+        'custom-ns', 
+        {}, 
+        customDir
+      );
+      
+      expect(result.success).toBe(true);
+      expect(result.commandInfo?.namespace).toBe('custom-ns');
+      expect(result.commandInfo?.fullName).toBe('custom-ns:namespaced-custom');
+      
+      // Verify file was created in namespace subdirectory
+      const expectedPath = path.join(customDir, '.claude', 'commands', 'custom-ns', 'namespaced-custom.md');
+      const fileExists = await fs.access(expectedPath).then(() => true).catch(() => false);
+      expect(fileExists).toBe(true);
+    });
+  });
 });

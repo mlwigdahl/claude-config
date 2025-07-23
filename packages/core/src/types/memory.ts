@@ -31,10 +31,11 @@ export type MemoryOperationError = ApplicationError;
 export const MemoryErrorCode = ErrorCode;
 
 export interface MemoryFileValidationResult {
-  isValid: boolean;
+  valid: boolean; // Standardized from isValid
   errors: string[];
   warnings: string[];
   imports: string[];
+  importDepth?: number; // Additional memory-specific metadata
 }
 
 export interface CreateMemoryFileOptions {

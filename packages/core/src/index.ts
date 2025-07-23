@@ -54,6 +54,9 @@ export * from './utils/template-factory.js';
 export * from './utils/consolidated-filesystem.js';
 export * from './utils/error-handling.js';
 
+// Export centralized validation constants
+export * from './constants/validation.js';
+
 export function main(): void {
   console.log('Claude Config - Business Logic Framework');
   console.log('Phase 1.2 - Memory File Operations - Implemented');

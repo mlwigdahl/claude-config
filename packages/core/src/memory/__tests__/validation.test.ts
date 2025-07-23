@@ -18,13 +18,13 @@ describe('Memory Validation', () => {
   describe('validateMemoryPath', () => {
     it('should validate project memory file path', () => {
       const result = validateMemoryPath(projectRoot, 'CLAUDE.md');
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     it('should reject invalid file names', () => {
       const result = validateMemoryPath(projectRoot, 'invalid-name.md');
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.errors).toContain('Memory files must be named CLAUDE.md');
     });
 
@@ -37,7 +37,7 @@ describe('Memory Validation', () => {
 
     it('should reject paths in invalid locations', () => {
       const result = validateMemoryPath(projectRoot, 'some/random/path/CLAUDE.md');
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.errors).toContain(
         'Memory files can only be placed in project root, user directory, or parent directories'
       );
@@ -49,14 +49,14 @@ describe('Memory Validation', () => {
       const content = '# Tech Stack\n\n- TypeScript\n- Node.js\n\n# Commands\n\n- npm run build';
       const result = validateMemoryContent(content);
       
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     it('should reject empty content', () => {
       const result = validateMemoryContent('');
       
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.errors).toContain('Memory file content cannot be empty');
     });
 
@@ -64,7 +64,7 @@ describe('Memory Validation', () => {
       const content = '@README.md\n@~/.claude/personal.md\n\n# Memory\n\nContent here.';
       const result = validateMemoryContent(content);
       
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
       expect(result.imports).toContain('README.md');
       expect(result.imports).toContain('~/.claude/personal.md');
       expect(result.imports).toHaveLength(2);
@@ -77,7 +77,7 @@ describe('Memory Validation', () => {
       
       // The warning about import count has been removed in favor of depth validation
       expect(result.imports).toHaveLength(6);
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
     });
 
     it('should warn about potential circular imports', () => {
@@ -235,41 +235,41 @@ Triple \`\`\` should not start block
   describe('validateImportPath', () => {
     it('should validate basic import paths', () => {
       const result = validateImportPath('README.md');
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     it('should validate relative paths', () => {
       const result = validateImportPath('../parent.md');
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
     });
 
     it('should validate user directory paths', () => {
       const result = validateImportPath('~/.claude/global.md');
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
     });
 
     it('should reject empty paths', () => {
       const result = validateImportPath('');
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.errors).toContain('Import path cannot be empty');
     });
 
     it('should reject paths with line breaks', () => {
       const result = validateImportPath('file\nwith\nbreaks.md');
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.errors).toContain('Import path cannot contain line breaks');
     });
 
     it('should reject paths with spaces', () => {
       const result = validateImportPath('file with spaces.md');
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.errors).toContain('Import path should not contain spaces');
     });
 
     it('should handle carriage returns', () => {
       const result = validateImportPath('file\rwith\rreturns.md');
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.errors).toContain('Import path cannot contain line breaks');
     });
   });
@@ -436,7 +436,7 @@ Triple \`\`\` should not start block
       await ConsolidatedFileSystem.writeFile(filePath, content);
       
       const result = validateMemoryContentWithDepth(content, filePath);
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
       expect(result.importDepth).toBe(1);
       expect(result.imports).toContain('other.md');
     });
@@ -456,7 +456,7 @@ Triple \`\`\` should not start block
       const content = await ConsolidatedFileSystem.readFile(files[0]);
       const result = validateMemoryContentWithDepth(content, files[0]);
       
-      expect(result.isValid).toBe(true);
+      expect(result.valid).toBe(true);
       expect(result.importDepth).toBe(4);
       expect(result.warnings).toEqual(
         expect.arrayContaining([
@@ -480,7 +480,7 @@ Triple \`\`\` should not start block
       const content = await ConsolidatedFileSystem.readFile(files[0]);
       const result = validateMemoryContentWithDepth(content, files[0]);
       
-      expect(result.isValid).toBe(false);
+      expect(result.valid).toBe(false);
       expect(result.importDepth).toBe(6);
       expect(result.importDepthError).toBeDefined();
       expect(result.errors).toEqual(

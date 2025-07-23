@@ -92,7 +92,7 @@ describe('Cross-Module Integration Tests', () => {
 
       const content = await fs.readFile(mainMemory!.path, 'utf-8');
       const validationResult = validateMemoryContent(content);
-      expect(validationResult.isValid).toBe(true);
+      expect(validationResult.valid).toBe(true);
     });
 
     it('should handle memory file validation with complex settings hierarchy', async () => {
@@ -149,7 +149,7 @@ describe('Cross-Module Integration Tests', () => {
       const content = await fs.readFile(mainMemory!.path, 'utf-8');
       const validationResult = validateMemoryContent(content);
 
-      expect(validationResult.isValid).toBe(true); // Should pass with depth 5
+      expect(validationResult.valid).toBe(true); // Should pass with depth 5
     });
   });
 
@@ -490,7 +490,7 @@ describe('Cross-Module Integration Tests', () => {
       );
       const content = await fs.readFile(mainMemory!.path, 'utf-8');
       const validationResult = validateMemoryContent(content);
-      expect(validationResult.isValid).toBe(true);
+      expect(validationResult.valid).toBe(true);
 
       // Test hooks extraction
       const hooks = extractHooksFromSettings(loadedSettings || {});
@@ -564,7 +564,7 @@ describe('Cross-Module Integration Tests', () => {
       const validationResult = validateMemoryContent(content);
 
       // Should still be valid structurally, but hooks might fail
-      expect(validationResult.isValid).toBe(true);
+      expect(validationResult.valid).toBe(true);
 
       // Test hook with failure
       const settingsFile = discoveredSettings.find(s => s.exists);

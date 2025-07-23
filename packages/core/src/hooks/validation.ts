@@ -4,6 +4,7 @@
  */
 
 import { HookEventType } from '../types/hooks.js';
+import { HOOK_VALIDATION } from '../constants/validation.js';
 
 /**
  * Simple hook definition for settings files
@@ -92,11 +93,11 @@ function validateSingleHook(
   if (hookDef.timeout !== undefined) {
     if (
       typeof hookDef.timeout !== 'number' ||
-      hookDef.timeout < 1 ||
-      hookDef.timeout > 300
+      hookDef.timeout < HOOK_VALIDATION.MIN_TIMEOUT ||
+      hookDef.timeout > HOOK_VALIDATION.MAX_TIMEOUT
     ) {
       errors.push(
-        `Hook timeout for ${eventType}:${toolPattern} must be between 1 and 300 seconds`
+        `Hook timeout for ${eventType}:${toolPattern} must be between ${HOOK_VALIDATION.MIN_TIMEOUT} and ${HOOK_VALIDATION.MAX_TIMEOUT} seconds`
       );
     }
   }

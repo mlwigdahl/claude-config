@@ -2,6 +2,7 @@ import path from 'path';
 import os from 'os';
 import * as fs from 'fs';
 import { MemoryFileValidationResult } from '../types/memory.js';
+import { MEMORY_VALIDATION } from '../constants/validation.js';
 
 /**
  * Check if a file path is in an ancestor directory of the project root
@@ -29,7 +30,7 @@ function isAncestorPath(filePath: string, projectRoot: string): boolean {
 export function validateMemoryPath(
   projectRoot: string,
   targetPath: string
-): { isValid: boolean; errors: string[] } {
+): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Resolve the path
@@ -62,7 +63,7 @@ export function validateMemoryPath(
   }
 
   return {
-    isValid: errors.length === 0,
+    valid: errors.length === 0,
     errors,
   };
 }
@@ -80,7 +81,7 @@ export function validateMemoryContent(
   // Check basic content structure
   if (!content || content.trim().length === 0) {
     errors.push('Memory file content cannot be empty');
-    return { isValid: false, errors, warnings, imports };
+    return { valid: false, errors, warnings, imports };
   }
 
   // Parse imports
@@ -115,7 +116,7 @@ export function validateMemoryContent(
   }
 
   // Check for overly long content
-  if (content.length > 50000) {
+  if (content.length > MEMORY_VALIDATION.FILE_SIZE_WARNING_THRESHOLD) {
     warnings.push(
       'Memory file is quite large, consider breaking into smaller files with imports'
     );
@@ -125,7 +126,7 @@ export function validateMemoryContent(
   validateMemoryBestPractices(content, warnings);
 
   return {
-    isValid: errors.length === 0,
+    valid: errors.length === 0,
     errors,
     warnings,
     imports,
@@ -330,13 +331,13 @@ export function resolveImportPath(
 }
 
 /**
- * Validate import chain depth doesn't exceed Claude Code's 5 hop limit
+ * Validate import chain depth doesn't exceed Claude Code's limit
  * @returns Object containing validation result and actual depth
  */
 export function validateImportChainDepth(
   filePath: string,
   visitedFiles = new Set<string>(),
-  maxDepth = 5
+  maxDepth = MEMORY_VALIDATION.MAX_IMPORT_DEPTH
 ): { valid: boolean; depth: number; error?: string } {
   // Normalize the file path
   const normalizedPath = path.resolve(filePath);
@@ -433,16 +434,16 @@ export function validateMemoryContentWithDepth(
     );
     return {
       ...basicValidation,
-      isValid: false,
+      valid: false,
       importDepth: depthResult.depth,
       importDepthError: depthResult.error,
     };
   }
 
   // Add warning if depth is getting close to limit
-  if (depthResult.depth >= 4) {
+  if (depthResult.depth >= MEMORY_VALIDATION.IMPORT_DEPTH_WARNING_THRESHOLD) {
     basicValidation.warnings.push(
-      `Import chain depth is ${depthResult.depth}, approaching Claude Code's limit of 5 hops`
+      `Import chain depth is ${depthResult.depth}, approaching Claude Code's limit of ${MEMORY_VALIDATION.MAX_IMPORT_DEPTH} hops`
     );
   }
 
@@ -453,7 +454,7 @@ export function validateMemoryContentWithDepth(
  * Validate import path format
  */
 export function validateImportPath(importPath: string): {
-  isValid: boolean;
+  valid: boolean;
   errors: string[];
 } {
   const errors: string[] = [];
@@ -480,7 +481,7 @@ export function validateImportPath(importPath: string): {
   }
 
   return {
-    isValid: errors.length === 0,
+    valid: errors.length === 0,
     errors,
   };
 }

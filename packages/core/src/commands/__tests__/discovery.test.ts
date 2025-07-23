@@ -65,14 +65,19 @@ describe('Command Discovery', () => {
 
       const result = await discoverSlashCommands(projectRoot);
 
-      expect(result.commands).toHaveLength(2);
+      // Filter to only the commands we created
+      const relevantCommands = result.commands.filter(cmd => 
+        cmd.name === 'user-cmd' || cmd.name === 'project-cmd'
+      );
+
+      expect(relevantCommands).toHaveLength(2);
       
-      const userCommand = result.commands.find(cmd => cmd.name === 'user-cmd');
+      const userCommand = relevantCommands.find(cmd => cmd.name === 'user-cmd');
       expect(userCommand).toBeDefined();
       expect(userCommand!.type).toBe(SlashCommandType.USER);
       expect(userCommand!.isActive).toBe(true);
 
-      const projectCommand = result.commands.find(cmd => cmd.name === 'project-cmd');
+      const projectCommand = relevantCommands.find(cmd => cmd.name === 'project-cmd');
       expect(projectCommand).toBeDefined();
       expect(projectCommand!.type).toBe(SlashCommandType.PROJECT);
       expect(projectCommand!.isActive).toBe(true);
@@ -94,7 +99,12 @@ describe('Command Discovery', () => {
 
       const result = await discoverSlashCommands(projectRoot);
 
-      expect(result.commands).toHaveLength(2);
+      // Filter to only the commands we created
+      const relevantCommands = result.commands.filter(cmd => 
+        cmd.name === 'commit' || cmd.name === 'build'
+      );
+
+      expect(relevantCommands).toHaveLength(2);
       expect(result.namespaces).toContain('git');
       expect(result.namespaces).toContain('docker');
 
@@ -418,8 +428,16 @@ describe('Command Discovery', () => {
     it('should list all commands by default', async () => {
       const commands = await listCommands(projectRoot);
 
-      expect(commands).toHaveLength(4);
-      expect(commands.every(cmd => cmd.isActive)).toBe(true); // activeOnly defaults to true
+      // Filter to only the commands we expect from beforeEach
+      const expectedCommands = commands.filter(cmd => 
+        cmd.name === 'root-cmd' || 
+        cmd.name === 'commit' || 
+        cmd.name === 'push' || 
+        cmd.name === 'user-cmd'
+      );
+
+      expect(expectedCommands).toHaveLength(4);
+      expect(expectedCommands.every(cmd => cmd.isActive)).toBe(true); // activeOnly defaults to true
     });
 
     it('should filter by namespace', async () => {
@@ -453,6 +471,143 @@ describe('Command Discovery', () => {
       for (let i = 1; i < commands.length; i++) {
         expect(commands[i].fullName >= commands[i - 1].fullName).toBe(true);
       }
+    });
+  });
+
+  describe('Parent Command Discovery', () => {
+    let parentDir: string;
+    let parentCommandsDir: string;
+
+    beforeEach(async () => {
+      // Create parent directory structure
+      parentDir = path.dirname(projectRoot);
+      parentCommandsDir = path.join(parentDir, '.claude', 'commands');
+      await fs.mkdir(parentCommandsDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+      // Clean up parent directories to avoid test interference
+      try {
+        const claudeDir = path.join(parentDir, '.claude');
+        await fs.rm(claudeDir, { recursive: true, force: true });
+        
+        const grandparentDir = path.dirname(parentDir);
+        const grandparentClaudeDir = path.join(grandparentDir, '.claude');
+        await fs.rm(grandparentClaudeDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+
+    it('should discover commands in parent directories', async () => {
+      // Clean up any existing commands first
+      try {
+        const tempRoot = path.dirname(path.dirname(projectRoot));
+        const tempClaudeDir = path.join(tempRoot, '.claude');
+        await fs.rm(tempClaudeDir, { recursive: true, force: true });
+      } catch {
+        // Ignore if doesn't exist
+      }
+
+      // Create parent command
+      await fs.writeFile(path.join(parentCommandsDir, 'parent-cmd.md'), 'Parent command content');
+      
+      // Create project command  
+      await fs.writeFile(path.join(projectCommandsDir, 'project-cmd.md'), 'Project command content');
+
+      const discovery = await discoverSlashCommands(projectRoot);
+
+      // Filter out any commands that might be from other tests
+      const relevantCommands = discovery.commands.filter(cmd => 
+        cmd.name === 'parent-cmd' || cmd.name === 'project-cmd'
+      );
+
+      expect(relevantCommands).toHaveLength(2);
+      
+      const parentCommand = relevantCommands.find(cmd => cmd.name === 'parent-cmd');
+      const projectCommand = relevantCommands.find(cmd => cmd.name === 'project-cmd');
+      
+      expect(parentCommand).toBeDefined();
+      expect(parentCommand?.type).toBe(SlashCommandType.PARENT);
+      expect(parentCommand?.isActive).toBe(true);
+      
+      expect(projectCommand).toBeDefined();
+      expect(projectCommand?.type).toBe(SlashCommandType.PROJECT);
+      expect(projectCommand?.isActive).toBe(true);
+    });
+
+    it('should handle precedence correctly with parent commands', async () => {
+      // Create the same command in different locations
+      const commandName = 'shared-cmd';
+      
+      await fs.writeFile(path.join(userCommandsDir, `${commandName}.md`), 'User version');
+      await fs.writeFile(path.join(parentCommandsDir, `${commandName}.md`), 'Parent version'); 
+      await fs.writeFile(path.join(projectCommandsDir, `${commandName}.md`), 'Project version');
+
+      const discovery = await discoverSlashCommands(projectRoot);
+      
+      // Should find all three versions
+      const sharedCommands = discovery.commands.filter(cmd => cmd.name === commandName);
+      expect(sharedCommands).toHaveLength(3);
+
+      // Check precedence: PROJECT (3) > PARENT (2) > USER (1)
+      const activeCommand = sharedCommands.find(cmd => cmd.isActive);
+      const inactiveCommands = sharedCommands.filter(cmd => !cmd.isActive);
+      
+      expect(activeCommand).toBeDefined();
+      expect(activeCommand?.type).toBe(SlashCommandType.PROJECT);
+      expect(inactiveCommands).toHaveLength(2);
+      
+      // Should have one conflict record
+      expect(discovery.conflicts).toHaveLength(1);
+      expect(discovery.conflicts[0].commandName).toBe(commandName);
+    });
+
+    it('should discover parent commands with namespaces', async () => {
+      // Create namespaced parent command
+      const namespaceDir = path.join(parentCommandsDir, 'parent-ns');
+      await fs.mkdir(namespaceDir, { recursive: true });
+      await fs.writeFile(path.join(namespaceDir, 'namespaced-cmd.md'), 'Namespaced parent command');
+
+      const discovery = await discoverSlashCommands(projectRoot);
+      
+      const namespacedCommand = discovery.commands.find(cmd => 
+        cmd.name === 'namespaced-cmd' && cmd.namespace === 'parent-ns'
+      );
+      
+      expect(namespacedCommand).toBeDefined();
+      expect(namespacedCommand?.type).toBe(SlashCommandType.PARENT);
+      expect(namespacedCommand?.fullName).toBe('parent-ns:namespaced-cmd');
+      expect(namespacedCommand?.invocation).toBe('/parent-ns:namespaced-cmd');
+      
+      // Should be included in namespaces list
+      expect(discovery.namespaces).toContain('parent-ns');
+    });
+
+    it('should traverse multiple parent directory levels', async () => {
+      // Create grandparent directory with commands
+      const grandparentDir = path.dirname(parentDir);
+      const grandparentCommandsDir = path.join(grandparentDir, '.claude', 'commands');
+      await fs.mkdir(grandparentCommandsDir, { recursive: true });
+      await fs.writeFile(path.join(grandparentCommandsDir, 'grandparent-cmd.md'), 'Grandparent command');
+      
+      // Create parent command too
+      await fs.writeFile(path.join(parentCommandsDir, 'parent-cmd.md'), 'Parent command');
+
+      const discovery = await discoverSlashCommands(projectRoot);
+      
+      const parentCommand = discovery.commands.find(cmd => cmd.name === 'parent-cmd');
+      const grandparentCommand = discovery.commands.find(cmd => cmd.name === 'grandparent-cmd');
+      
+      expect(parentCommand).toBeDefined();
+      expect(parentCommand?.type).toBe(SlashCommandType.PARENT);
+      
+      expect(grandparentCommand).toBeDefined();
+      expect(grandparentCommand?.type).toBe(SlashCommandType.PARENT);
+      
+      // Both should be active (no conflicts)
+      expect(parentCommand?.isActive).toBe(true);
+      expect(grandparentCommand?.isActive).toBe(true);
     });
   });
 });

@@ -160,12 +160,14 @@ export interface HookSecurityIssue {
 
 /**
  * Hook validation result
+ * Aligned with UnifiedValidationResult structure
  */
 export interface HookValidationResult {
   valid: boolean;
-  errors?: HookValidationError[];
-  warnings?: string[];
-  securityIssues?: HookSecurityIssue[];
+  errors: string[]; // Standardized string array
+  warnings: string[]; // Always present as array
+  securityIssues?: HookSecurityIssue[]; // Hook-specific metadata
+  detailedErrors?: HookValidationError[]; // Backward compatibility for structured errors
 }
 
 /**

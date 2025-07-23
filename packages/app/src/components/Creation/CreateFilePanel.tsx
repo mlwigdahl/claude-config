@@ -103,7 +103,7 @@ const hasInvalidCommandsHierarchy = (path: string): boolean => {
 };
 
 const CreateFilePanel: React.FC = () => {
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen, onOpen, onClose: originalOnClose } = useDisclosure();
   const { projectRoot, selectedNode, refreshFileTree, selectNodeByPath } = useFileSystem();
   const toast = useToast();
   
@@ -334,6 +334,17 @@ const CreateFilePanel: React.FC = () => {
     checkFileExists();
   }, [fileName, commandName, directoryPath, fileType]);
 
+  // Custom close handler to clear all error states
+  const onClose = () => {
+    setFileNameWarning('');
+    setFileExistsWarning('');
+    setFileExists(false);
+    setSettingsPathWarning('');
+    setIsSettingsPathValid(true);
+    setPathValidation({isValid: true});
+    originalOnClose();
+  };
+
   const handleCreateFile = async () => {
     if (!projectRoot) {
       toast({
@@ -453,12 +464,26 @@ const CreateFilePanel: React.FC = () => {
   const handleCreateMemory = () => {
     setFileType('memory');
     setFileName('CLAUDE');
+    // Clear all error states when opening a new modal
+    setFileNameWarning('');
+    setFileExistsWarning('');
+    setFileExists(false);
+    setSettingsPathWarning('');
+    setIsSettingsPathValid(true);
+    setPathValidation({isValid: true});
     // Directory path will be set by useEffect when fileType changes
     onOpen();
   };
 
   const handleCreateSettings = () => {
     setFileType('settings');
+    // Clear all error states when opening a new modal
+    setFileNameWarning('');
+    setFileExistsWarning('');
+    setFileExists(false);
+    setSettingsPathWarning('');
+    setIsSettingsPathValid(true);
+    setPathValidation({isValid: true});
     // File name will be set by useEffect when fileType and settingsType changes
     // Directory path will be set by useEffect when fileType changes
     onOpen();
@@ -468,6 +493,13 @@ const CreateFilePanel: React.FC = () => {
     setFileType('command');
     setCommandName('');
     setCommandNamespace('');
+    // Clear all error states when opening a new modal
+    setFileNameWarning('');
+    setFileExistsWarning('');
+    setFileExists(false);
+    setSettingsPathWarning('');
+    setIsSettingsPathValid(true);
+    setPathValidation({isValid: true});
     // Directory path will be set by useEffect when fileType changes
     onOpen();
   };

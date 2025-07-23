@@ -98,7 +98,7 @@ export class ConfigurationCoreImpl implements ConfigurationCore {
       const result = validateSettings(content);
 
       return {
-        valid: result.isValid,
+        valid: result.valid,
         errors: result.errors,
         warnings: result.warnings || [],
         metadata: {
@@ -130,7 +130,7 @@ export class ConfigurationCoreImpl implements ConfigurationCore {
       const result = validateCommandFile(content, filePath);
 
       return {
-        valid: result.isValid,
+        valid: result.valid,
         errors: result.errors,
         warnings: result.warnings || [],
         metadata: {

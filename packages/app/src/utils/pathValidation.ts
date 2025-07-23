@@ -48,9 +48,7 @@ export function validateDirectoryPath(
         normalizedPath.endsWith('.claude/commands');
 
       if (!hasClaudeCommands && !endsWithClaudeCommands) {
-        const suggestedPath = projectRoot
-          ? `${projectRoot}/.claude/commands`
-          : `${normalizedPath}/.claude/commands`;
+        const suggestedPath = `${normalizedPath}/.claude/commands`;
 
         return {
           isValid: false,
@@ -106,7 +104,7 @@ export function getPreferredDirectoryPath(
         return directoryPath;
       }
 
-      const baseDir = projectRoot || '';
+      const baseDir = directoryPath || projectRoot || '';
       return `${baseDir}/.claude/commands`;
     }
 

@@ -14,7 +14,7 @@ const logger = getLogger('settings-validation');
  * Used by the configuration core service
  */
 export function validateSettings(content: string): {
-  isValid: boolean;
+  valid: boolean;
   errors: string[];
   warnings?: string[];
 } {
@@ -24,7 +24,7 @@ export function validateSettings(content: string): {
   // Check if content is empty
   if (!content || content.trim().length === 0) {
     errors.push('Settings file cannot be empty');
-    return { isValid: false, errors, warnings };
+    return { valid: false, errors, warnings };
   }
 
   // Try to parse as JSON
@@ -34,7 +34,7 @@ export function validateSettings(content: string): {
     // Basic validation of settings structure
     if (typeof settings !== 'object' || settings === null) {
       errors.push('Settings must be a JSON object');
-      return { isValid: false, errors, warnings };
+      return { valid: false, errors, warnings };
     }
 
     // Validate permissions structure if present
@@ -170,7 +170,7 @@ export function validateSettings(content: string): {
   }
 
   return {
-    isValid: errors.length === 0,
+    valid: errors.length === 0,
     errors,
     warnings,
   };

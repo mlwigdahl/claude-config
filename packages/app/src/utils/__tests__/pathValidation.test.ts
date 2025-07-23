@@ -22,7 +22,7 @@ describe('pathValidation', () => {
       const result = validateDirectoryPath('/some/path', 'command', '/project/root');
       expect(result.isValid).toBe(false);
       expect(result.errorMessage).toContain('.claude/commands');
-      expect(result.suggestedPath).toBe('/project/root/.claude/commands');
+      expect(result.suggestedPath).toBe('/some/path/.claude/commands');
     });
 
     it('should accept valid .claude/commands path for command files', () => {
@@ -66,7 +66,7 @@ describe('pathValidation', () => {
 
     it('should return .claude/commands path for command files', () => {
       const result = getPreferredDirectoryPath('command', '/selected/dir', '/project/root');
-      expect(result).toBe('/project/root/.claude/commands');
+      expect(result).toBe('/selected/dir/.claude/commands');
     });
 
     it('should preserve existing .claude/commands path for command files', () => {

@@ -10,6 +10,7 @@ import {
   SimpleHookDefinition,
   validateHooksConfig,
 } from './validation.js';
+import { HOOK_VALIDATION } from '../constants/validation.js';
 
 /**
  * Extract hooks from settings configuration
@@ -223,7 +224,7 @@ export function getHooksStatistics(hooks: HooksConfig): {
   const averageTimeout =
     timeouts.length > 0
       ? timeouts.reduce((a, b) => a + b, 0) / timeouts.length
-      : 60; // Default timeout
+      : HOOK_VALIDATION.DEFAULT_TIMEOUT;
 
   return {
     totalHooks,

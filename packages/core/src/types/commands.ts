@@ -10,6 +10,7 @@ import { ApplicationError, ErrorCode } from '../utils/error-handling.js';
 export enum SlashCommandType {
   USER = 'USER', // ~/.claude/commands/
   PROJECT = 'PROJECT', // .claude/commands/
+  PARENT = 'PARENT', // parent directories' .claude/commands/
 }
 
 /**
@@ -143,12 +144,15 @@ export interface NamespaceInfo {
 
 /**
  * Command name validation result
+ * Aligned with UnifiedValidationResult structure
  */
 export interface CommandNameValidationResult {
   valid: boolean;
-  message?: string;
-  suggestion?: string;
-  details?: any;
+  errors?: string[]; // Standardized errors array
+  warnings?: string[]; // Optional warnings
+  message?: string; // Backward compatibility
+  suggestion?: string; // Backward compatibility  
+  details?: any; // Additional metadata
 }
 
 /**

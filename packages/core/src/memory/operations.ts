@@ -29,7 +29,7 @@ export class MemoryFileOperations {
 
       // Validate the target path
       const pathValidation = validateMemoryPath(projectRoot, targetPath);
-      if (!pathValidation.isValid) {
+      if (!pathValidation.valid) {
         throw new ApplicationError({
           message: `Invalid path: ${pathValidation.errors.join(', ')}`,
           code: ErrorCode.INVALID_PATH,
@@ -40,7 +40,7 @@ export class MemoryFileOperations {
       // Validate content if requested
       if (options.validateContent) {
         const contentValidation = validateMemoryContent(content);
-        if (!contentValidation.isValid) {
+        if (!contentValidation.valid) {
           throw new ApplicationError({
             message: `Invalid content: ${contentValidation.errors.join(', ')}`,
             code: ErrorCode.INVALID_CONTENT,
@@ -99,7 +99,7 @@ export class MemoryFileOperations {
 
       // Validate the target path
       const pathValidation = validateMemoryPath(projectRoot, targetPath);
-      if (!pathValidation.isValid) {
+      if (!pathValidation.valid) {
         throw new ApplicationError({
           message: `Invalid path: ${pathValidation.errors.join(', ')}`,
           code: ErrorCode.INVALID_PATH,
@@ -140,7 +140,7 @@ export class MemoryFileOperations {
       // Validate content if requested
       if (options.validateContent) {
         const contentValidation = validateMemoryContent(finalContent);
-        if (!contentValidation.isValid) {
+        if (!contentValidation.valid) {
           throw new ApplicationError({
             message: `Invalid content: ${contentValidation.errors.join(', ')}`,
             code: ErrorCode.INVALID_CONTENT,
@@ -198,7 +198,7 @@ export class MemoryFileOperations {
       const sourceValidation = validateMemoryPath(projectRoot, sourcePath);
       const targetValidation = validateMemoryPath(projectRoot, targetPath);
 
-      if (!sourceValidation.isValid) {
+      if (!sourceValidation.valid) {
         throw new ApplicationError({
           message: `Invalid source path: ${sourceValidation.errors.join(', ')}`,
           code: ErrorCode.INVALID_PATH,
@@ -206,7 +206,7 @@ export class MemoryFileOperations {
         });
       }
 
-      if (!targetValidation.isValid) {
+      if (!targetValidation.valid) {
         throw new ApplicationError({
           message: `Invalid target path: ${targetValidation.errors.join(', ')}`,
           code: ErrorCode.INVALID_PATH,
@@ -270,7 +270,7 @@ export class MemoryFileOperations {
 
       // Validate the target path
       const pathValidation = validateMemoryPath(projectRoot, targetPath);
-      if (!pathValidation.isValid) {
+      if (!pathValidation.valid) {
         throw new ApplicationError({
           message: `Invalid path: ${pathValidation.errors.join(', ')}`,
           code: ErrorCode.INVALID_PATH,

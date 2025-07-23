@@ -9,6 +9,7 @@ import {
   SlashCommandOperationResult,
   SlashCommandOperationOptions,
   SlashCommandInfo,
+  SlashCommandType,
 } from '../types/commands.js';
 import { ErrorCode, ApplicationError } from '../utils/error-handling.js';
 import {
@@ -34,7 +35,8 @@ export async function createSlashCommand(
   commandName: string,
   content: string | SlashCommandContent,
   namespace?: string,
-  options: SlashCommandOperationOptions = {}
+  options: SlashCommandOperationOptions = {},
+  customBaseDir?: string
 ): Promise<SlashCommandOperationResult> {
   logger.info(
     `Creating slash command: ${namespace ? `${namespace}:` : ''}${commandName}`
@@ -42,14 +44,21 @@ export async function createSlashCommand(
 
   try {
     // Build the target path
-    const targetPath = buildCommandPath(projectRoot, commandName, namespace);
+    const targetPath = buildCommandPath(
+      projectRoot, 
+      commandName, 
+      namespace, 
+      SlashCommandType.PROJECT,
+      customBaseDir
+    );
 
     // Validate the target path
     const pathValidation = await validateCommandPath(
       projectRoot,
       targetPath,
       commandName,
-      namespace
+      namespace,
+      customBaseDir
     );
     if (!pathValidation.valid) {
       return {
@@ -165,7 +174,8 @@ export async function updateSlashCommand(
   commandName: string,
   content: string | Partial<SlashCommandContent>,
   namespace?: string,
-  options: SlashCommandOperationOptions = {}
+  options: SlashCommandOperationOptions = {},
+  customBaseDir?: string
 ): Promise<SlashCommandOperationResult> {
   logger.info(
     `Updating slash command: ${namespace ? `${namespace}:` : ''}${commandName}`
@@ -173,14 +183,21 @@ export async function updateSlashCommand(
 
   try {
     // Build the target path
-    const targetPath = buildCommandPath(projectRoot, commandName, namespace);
+    const targetPath = buildCommandPath(
+      projectRoot, 
+      commandName, 
+      namespace, 
+      SlashCommandType.PROJECT,
+      customBaseDir
+    );
 
     // Validate the target path
     const pathValidation = await validateCommandPath(
       projectRoot,
       targetPath,
       commandName,
-      namespace
+      namespace,
+      customBaseDir
     );
     if (!pathValidation.valid) {
       return {
@@ -288,7 +305,9 @@ export async function moveSlashCommand(
   targetCommand: string,
   sourceNamespace?: string,
   targetNamespace?: string,
-  options: SlashCommandOperationOptions = {}
+  options: SlashCommandOperationOptions = {},
+  customSourceDir?: string,
+  customTargetDir?: string
 ): Promise<SlashCommandOperationResult> {
   logger.info(
     `Moving slash command from ${sourceNamespace ? `${sourceNamespace}:` : ''}${sourceCommand} to ${targetNamespace ? `${targetNamespace}:` : ''}${targetCommand}`
@@ -299,12 +318,16 @@ export async function moveSlashCommand(
     const sourcePath = buildCommandPath(
       projectRoot,
       sourceCommand,
-      sourceNamespace
+      sourceNamespace,
+      SlashCommandType.PROJECT,
+      customSourceDir
     );
     const targetPath = buildCommandPath(
       projectRoot,
       targetCommand,
-      targetNamespace
+      targetNamespace,
+      SlashCommandType.PROJECT,
+      customTargetDir
     );
 
     // Validate both paths
@@ -312,7 +335,8 @@ export async function moveSlashCommand(
       projectRoot,
       sourcePath,
       sourceCommand,
-      sourceNamespace
+      sourceNamespace,
+      customSourceDir
     );
     if (!sourceValidation.valid) {
       return {
@@ -330,7 +354,8 @@ export async function moveSlashCommand(
       projectRoot,
       targetPath,
       targetCommand,
-      targetNamespace
+      targetNamespace,
+      customTargetDir
     );
     if (!targetValidation.valid) {
       return {
@@ -454,7 +479,8 @@ export async function deleteSlashCommand(
   projectRoot: string,
   commandName: string,
   namespace?: string,
-  options: SlashCommandOperationOptions = {}
+  options: SlashCommandOperationOptions = {},
+  customBaseDir?: string
 ): Promise<SlashCommandOperationResult> {
   logger.info(
     `Deleting slash command: ${namespace ? `${namespace}:` : ''}${commandName}`
@@ -462,14 +488,21 @@ export async function deleteSlashCommand(
 
   try {
     // Build the target path
-    const targetPath = buildCommandPath(projectRoot, commandName, namespace);
+    const targetPath = buildCommandPath(
+      projectRoot, 
+      commandName, 
+      namespace, 
+      SlashCommandType.PROJECT,
+      customBaseDir
+    );
 
     // Validate the target path
     const pathValidation = await validateCommandPath(
       projectRoot,
       targetPath,
       commandName,
-      namespace
+      namespace,
+      customBaseDir
     );
     if (!pathValidation.valid) {
       return {
