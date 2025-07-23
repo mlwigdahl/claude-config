@@ -142,8 +142,10 @@ export class ConsolidatedFileSystem {
       }
 
       // Write file atomically using temporary file
+      // Ensure content is clean (no BOM or unwanted characters)
+      const cleanContent = content.replace(/^\uFEFF/, ''); // Remove BOM if present
       const tempPath = `${filePath}.tmp.${Date.now()}`;
-      await fs.writeFile(tempPath, content, 'utf8');
+      await fs.writeFile(tempPath, cleanContent, { encoding: 'utf8', flag: 'w' });
       await fs.rename(tempPath, filePath);
 
       logger.debug(

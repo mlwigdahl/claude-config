@@ -93,13 +93,18 @@ Add any important notes or reminders here.
         PROJECT_NAME: projectName,
       },
       hooks: {
-        Bash: {
-          pre: {
-            type: 'command',
-            command: "echo 'Running bash command...'",
-            timeout: 30,
+        PreToolUse: [
+          {
+            matcher: '*',
+            hooks: [
+              {
+                type: 'command',
+                command: "echo 'Running pre-tool command...'",
+                timeout: 30,
+              },
+            ],
           },
-        },
+        ],
       },
     };
 
@@ -108,8 +113,11 @@ Add any important notes or reminders here.
       settings.model = model;
     }
 
+    // Generate clean JSON without BOM or extra whitespace
+    const jsonContent = JSON.stringify(settings, null, 2);
+    
     return {
-      content: JSON.stringify(settings, null, 2),
+      content: jsonContent,
       path: '.claude/settings.json',
       description: 'Claude Code settings configuration',
     };
@@ -194,8 +202,11 @@ Add any important notes about this command's behavior.
       },
     };
 
+    // Generate clean JSON without BOM or extra whitespace
+    const jsonContent = JSON.stringify(settings, null, 2);
+
     return {
-      content: JSON.stringify(settings, null, 2),
+      content: jsonContent,
       path: '.claude/settings.json',
       description: 'Minimal settings template',
     };

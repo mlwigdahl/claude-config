@@ -388,13 +388,18 @@ Add any important notes or reminders here.
             PROJECT_NAME: 'your-project-name',
           },
           hooks: {
-            Bash: {
-              pre: {
-                type: 'command',
-                command: "echo 'Running bash command...'",
-                timeout: 30,
+            PreToolUse: [
+              {
+                matcher: '*',
+                hooks: [
+                  {
+                    type: 'command',
+                    command: "echo 'Running pre-tool command...'",
+                    timeout: 30,
+                  },
+                ],
               },
-            },
+            ],
           },
         },
         null,
