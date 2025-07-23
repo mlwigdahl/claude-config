@@ -23,7 +23,7 @@ const Header: React.FC = () => {
     <Box bg={bg} color={color} px={6} py={4}>
       <Flex align="center" justify="space-between">
         <Heading as="h1" size="lg">
-          Claude Code Configuration Manager
+          Claude Code Configuration Console
         </Heading>
         
         <HStack spacing={4} align="center">

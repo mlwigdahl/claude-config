@@ -221,7 +221,7 @@ describe.skip('App', () => {
   it('renders without crashing', () => {
     renderApp();
     expect(
-      screen.getByText('Claude Code Configuration Manager')
+      screen.getByText('Claude Code Configuration Console')
     ).toBeInTheDocument();
   });
 
