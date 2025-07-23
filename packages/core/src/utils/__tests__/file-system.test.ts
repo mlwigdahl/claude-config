@@ -135,7 +135,7 @@ describe('FileSystemUtils', () => {
       const stats = await FileSystemUtils.getFileStats(filePath);
       
       expect(stats).not.toBeNull();
-      expect(stats!.size).toBe(content.length);
+      expect(stats!.size).toBe(content.length + 1);
       expect(typeof stats!.lastModified.getTime).toBe('function');
       expect(stats!.lastModified.getTime()).toBeLessThanOrEqual(Date.now());
     });
@@ -211,7 +211,7 @@ describe('FileSystemUtils', () => {
       await FileSystemUtils.writeFileContent(filePath, content);
       
       const readContent = await ConsolidatedFileSystem.readFile(filePath);
-      expect(readContent).toBe(content);
+      expect(readContent).toBe(content + '\n');
     });
 
     it('should create parent directories', async () => {
@@ -221,7 +221,7 @@ describe('FileSystemUtils', () => {
       await FileSystemUtils.writeFileContent(filePath, content);
       
       const readContent = await ConsolidatedFileSystem.readFile(filePath);
-      expect(readContent).toBe(content);
+      expect(readContent).toBe(content + '\n');
       
       // Verify parent directories were created
       const parentDir = path.dirname(filePath);
@@ -239,7 +239,7 @@ describe('FileSystemUtils', () => {
       await FileSystemUtils.writeFileContent(filePath, newContent, { overwrite: true });
       
       const readContent = await ConsolidatedFileSystem.readFile(filePath);
-      expect(readContent).toBe(newContent);
+      expect(readContent).toBe(newContent + '\n');
     });
 
     it('should throw FILE_EXISTS without overwrite', async () => {
@@ -304,7 +304,7 @@ describe('FileSystemUtils', () => {
       
       // Target should exist with correct content
       const targetContent = await ConsolidatedFileSystem.readFile(targetPath);
-      expect(targetContent).toBe(content);
+      expect(targetContent).toBe(content + '\n');
     });
 
     it('should create target directory', async () => {
@@ -317,7 +317,7 @@ describe('FileSystemUtils', () => {
       await FileSystemUtils.moveFile(sourcePath, targetPath);
       
       const targetContent = await ConsolidatedFileSystem.readFile(targetPath);
-      expect(targetContent).toBe(content);
+      expect(targetContent).toBe(content + '\n');
       
       // Verify target directory was created
       const targetDir = path.dirname(targetPath);
@@ -337,7 +337,7 @@ describe('FileSystemUtils', () => {
       await FileSystemUtils.moveFile(sourcePath, targetPath, { overwrite: true });
       
       const finalContent = await ConsolidatedFileSystem.readFile(targetPath);
-      expect(finalContent).toBe(sourceContent);
+      expect(finalContent).toBe(sourceContent + '\n');
     });
 
     it('should throw FILE_NOT_FOUND for missing source', async () => {

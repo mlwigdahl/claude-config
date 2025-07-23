@@ -38,8 +38,8 @@ describe('Markdown File Utilities', () => {
       await ConsolidatedFileSystem.writeFile(testFile, content);
       
       const result = await readMarkdownFile(testFile);
-      expect(result.content).toBe(content);
-      expect(result.rawContent).toBe(content);
+      expect(result.content).toBe(content + '\n');
+      expect(result.rawContent).toBe(content + '\n');
       expect(result.frontmatter).toBeUndefined();
     });
 
@@ -62,8 +62,8 @@ Use $ARGUMENTS to pass parameters.`;
         description: 'Test command',
         'allowed-tools': ['Read', 'Write']
       });
-      expect(result.content).toBe('This is a test command.\n\nUse $ARGUMENTS to pass parameters.');
-      expect(result.rawContent).toBe(content);
+      expect(result.content).toBe('This is a test command.\n\nUse $ARGUMENTS to pass parameters.\n');
+      expect(result.rawContent).toBe(content + '\n');
     });
 
     it('should handle empty files', async () => {
@@ -110,7 +110,7 @@ Command content`;
       await writeMarkdownFile(testFile, content);
       
       const written = await ConsolidatedFileSystem.readFile(testFile);
-      expect(written).toBe('This is a test command.');
+      expect(written).toBe('This is a test command.\n');
     });
 
     it('should write Markdown file with frontmatter', async () => {
@@ -195,7 +195,7 @@ Command content`;
         description: 'Updated description',
         'allowed-tools': ['Read']
       });
-      expect(result.content).toBe('Original content');
+      expect(result.content).toBe('Original content\n');
     });
 
     it('should create file if it doesn\'t exist', async () => {
@@ -209,7 +209,7 @@ Command content`;
       expect(result.content).toBe('New content');
       
       const written = await readMarkdownFile(testFile);
-      expect(written.content).toBe('New content');
+      expect(written.content).toBe('New content\n');
     });
   });
 

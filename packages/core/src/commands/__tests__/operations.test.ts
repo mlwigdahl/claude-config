@@ -46,7 +46,7 @@ describe('Slash Command Operations', () => {
       expect(fileExists).toBe(true);
       
       const fileContent = await fs.readFile(filePath, 'utf-8');
-      expect(fileContent).toBe(content);
+      expect(fileContent).toBe(content + '\n');
     });
 
     it('should create a command with frontmatter', async () => {
@@ -134,7 +134,7 @@ describe('Slash Command Operations', () => {
       // Verify content was updated
       const filePath = path.join(projectRoot, '.claude', 'commands', 'force-cmd.md');
       const fileContent = await fs.readFile(filePath, 'utf-8');
-      expect(fileContent).toBe(newContent);
+      expect(fileContent).toBe(newContent + '\n');
     });
 
     it('should perform dry run when requested', async () => {
@@ -169,7 +169,7 @@ describe('Slash Command Operations', () => {
       // Verify file was updated
       const filePath = path.join(projectRoot, '.claude', 'commands', 'update-cmd.md');
       const fileContent = await fs.readFile(filePath, 'utf-8');
-      expect(fileContent).toBe(updatedContent);
+      expect(fileContent).toBe(updatedContent + '\n');
     });
 
     it('should update command frontmatter', async () => {
@@ -244,7 +244,7 @@ describe('Slash Command Operations', () => {
       expect(targetExists).toBe(true);
       
       const targetContent = await fs.readFile(targetPath, 'utf-8');
-      expect(targetContent).toBe(content);
+      expect(targetContent).toBe(content + '\n');
     });
 
     it('should move command to different namespace', async () => {

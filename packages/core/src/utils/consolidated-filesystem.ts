@@ -142,8 +142,21 @@ export class ConsolidatedFileSystem {
       }
 
       // Write file atomically using temporary file
-      // Ensure content is clean (no BOM or unwanted characters)
-      const cleanContent = content.replace(/^\uFEFF/, ''); // Remove BOM if present
+      // Enhanced content cleaning for Windows compatibility
+      const cleanContent = this.cleanContentForCrossPlatform(content, filePath);
+      
+      // Debug logging for Windows JSON parsing issues
+      logger.debug(`Content length after cleaning: ${cleanContent.length}`);
+      if (filePath.endsWith('.json')) {
+        logger.debug(`First 100 chars: ${JSON.stringify(cleanContent.substring(0, 100))}`);
+        try {
+          JSON.parse(cleanContent);
+          logger.debug('JSON parsing test successful');
+        } catch (parseError: any) {
+          logger.error(`JSON parsing test failed: ${parseError.message}`);
+        }
+      }
+      
       const tempPath = `${filePath}.tmp.${Date.now()}`;
       await fs.writeFile(tempPath, cleanContent, { encoding: 'utf8', flag: 'w' });
       await fs.rename(tempPath, filePath);
@@ -156,6 +169,37 @@ export class ConsolidatedFileSystem {
       logger.error(`Failed to write file ${filePath}: ${error.message}`);
       throw new Error(`Failed to write file ${filePath}: ${error.message}`);
     }
+  }
+
+  /**
+   * Clean content for cross-platform compatibility, especially Windows
+   */
+  private static cleanContentForCrossPlatform(content: string, filePath: string): string {
+    // Start with the content
+    let cleaned = content;
+
+    // Remove BOM (Byte Order Mark)
+    cleaned = cleaned.replace(/^\uFEFF/, '');
+
+    // Remove other problematic Unicode characters that can interfere with JSON parsing
+    // Zero-width characters
+    cleaned = cleaned.replace(/[\u200B-\u200D\uFEFF]/g, ''); // Zero-width space, ZWNJ, ZWJ, BOM
+    cleaned = cleaned.replace(/[\u00A0]/g, ' '); // Non-breaking space to regular space
+    
+    // Remove other invisible/control characters that could cause issues
+    cleaned = cleaned.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+    
+    // Normalize line endings to LF (Unix style) for consistency
+    cleaned = cleaned.replace(/\r\n/g, '\n'); // CRLF to LF
+    cleaned = cleaned.replace(/\r/g, '\n'); // Remaining CR to LF
+    
+    // Remove any trailing whitespace from lines
+    cleaned = cleaned.replace(/[ \t]+$/gm, '');
+    
+    // Ensure file ends with single newline
+    cleaned = cleaned.replace(/\n+$/, '') + '\n';
+
+    return cleaned;
   }
 
   /**

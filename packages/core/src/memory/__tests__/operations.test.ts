@@ -40,7 +40,7 @@ describe('MemoryFileOperations', () => {
 
       // Verify content
       const savedContent = await fs.readFile(filePath, 'utf-8');
-      expect(savedContent).toBe(content);
+      expect(savedContent).toBe(content + '\n');
     });
 
     it('should fail with invalid file name', async () => {
@@ -86,7 +86,7 @@ describe('MemoryFileOperations', () => {
       
       // Verify content was overwritten
       const savedContent = await fs.readFile(filePath, 'utf-8');
-      expect(savedContent).toBe(content);
+      expect(savedContent).toBe(content + '\n');
     });
 
     it('should validate content when validateContent option is true', async () => {
@@ -142,7 +142,7 @@ describe('MemoryFileOperations', () => {
       // Verify content was updated
       const filePath = path.join(projectRoot, 'CLAUDE.md');
       const savedContent = await fs.readFile(filePath, 'utf-8');
-      expect(savedContent).toBe(newContent);
+      expect(savedContent).toBe(newContent + '\n');
     });
 
     it('should fail when file does not exist', async () => {
