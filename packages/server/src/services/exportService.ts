@@ -99,7 +99,9 @@ export class ExportService {
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
-      logger.info(`Starting export of project: ${projectPath}`, { options });
+      // Normalize project path for cross-platform compatibility
+      const normalizedProjectPath = projectPath.replace(/\\/g, '/');
+      logger.info(`Starting export of project: ${normalizedProjectPath}`, { options });
 
       // Validate project path exists
       if (!(await ConsolidatedFileSystem.directoryExists(projectPath))) {
@@ -107,7 +109,7 @@ export class ExportService {
       }
 
       // Read gitignore patterns and add default exclusions
-      const gitignorePatterns = await this.readGitignore(projectPath);
+      const gitignorePatterns = await this.readGitignore(normalizedProjectPath);
       const defaultExclusions = [
         'node_modules/',
         '.git/',
@@ -128,7 +130,7 @@ export class ExportService {
 
       // Collect files to export
       const filesToExport = await this.collectFilesToExport(
-        projectPath,
+        normalizedProjectPath,
         options,
         allPatterns
       );
@@ -146,7 +148,7 @@ export class ExportService {
       const archiveData = await this.createArchive(filesToExport, options);
 
       // Generate filename
-      const projectName = path.basename(projectPath);
+      const projectName = path.basename(normalizedProjectPath);
       const timestamp = new Date()
         .toISOString()
         .slice(0, 16)
@@ -154,7 +156,7 @@ export class ExportService {
       const filename = `${projectName}-export-${timestamp}.zip`;
 
       logger.info(`Export completed successfully`, {
-        projectPath,
+        projectPath: normalizedProjectPath,
         fileCount: filesToExport.length,
         filename,
       });
@@ -213,8 +215,11 @@ export class ExportService {
     visitedDirs: Set<string>,
     gitignorePatterns: string[]
   ): Promise<void> {
-    // Prevent infinite loops with symlinks - use the current directory as realpath
-    const realPath = currentDir;
+    // Normalize current directory path for cross-platform compatibility
+    const normalizedCurrentDir = currentDir.replace(/\\/g, '/');
+    
+    // Prevent infinite loops with symlinks - use the normalized directory as realpath
+    const realPath = normalizedCurrentDir;
     if (visitedDirs.has(realPath)) {
       return;
     }
@@ -224,7 +229,8 @@ export class ExportService {
       const entries = await ConsolidatedFileSystem.listDirectory(currentDir);
 
       for (const entry of entries) {
-        const fullPath = path.join(currentDir, entry);
+        // Normalize path for cross-platform compatibility
+        const fullPath = path.join(normalizedCurrentDir, entry).replace(/\\/g, '/');
 
         // Skip ignored files and directories
         const ignored = this.isIgnored(

@@ -32,7 +32,9 @@ router.post(
     );
 
     if (!result.success) {
-      throw createError(result.error || 'Export failed', 500);
+      // Check if it's a "no files found" error and return 404 instead of 500
+      const statusCode = result.error?.includes('No files found') ? 404 : 500;
+      throw createError(result.error || 'Export failed', statusCode);
     }
 
     // Set appropriate headers for file download

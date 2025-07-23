@@ -84,6 +84,19 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
       });
 
       if (!response.ok) {
+        // Handle specific error cases
+        if (response.status === 404) {
+          // No files found to export
+          toast({
+            title: 'No Files to Export',
+            description: 'No configuration files were found matching your export criteria. Please adjust your selection and try again.',
+            status: 'warning',
+            duration: 5000,
+            isClosable: true
+          });
+          setIsExporting(false);
+          return;
+        }
         throw new Error(`Export failed: ${response.statusText}`);
       }
 

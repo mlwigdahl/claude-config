@@ -324,8 +324,8 @@ export class FileOperationsService {
   static getFileType(
     filePath: string
   ): 'memory' | 'settings' | 'command' | null {
-    // Normalize path - remove trailing slashes
-    const normalizedPath = filePath.replace(/\/+$/, '');
+    // Normalize path - handle Windows backslashes and remove trailing slashes
+    const normalizedPath = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
 
     const fileName = normalizedPath.split('/').pop() || '';
 
