@@ -589,7 +589,7 @@ export async function deleteSlashCommand(
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorCode =
       error && typeof error === 'object' && 'code' in error
-        ? (error as { code: string }).code
+        ? ((error as { code: string }).code as ErrorCode)
         : ErrorCode.OPERATION_FAILED;
     logger.error(`Failed to delete slash command: ${errorMessage}`);
     return {
@@ -597,8 +597,9 @@ export async function deleteSlashCommand(
       message: `Failed to delete command: ${errorMessage}`,
       error: new ApplicationError({
         code: errorCode,
-        message: error.message,
-        context: error.details,
+        message: errorMessage,
+        context:
+          error instanceof Error ? { details: error.message } : undefined,
       }),
     };
   }

@@ -6,26 +6,37 @@ export interface ApiError extends Error {
 }
 
 export const errorHandler = (
-  err: ApiError,
+  err: ApiError | unknown,
   req: Request,
   res: Response,
   _next: NextFunction
 ) => {
+  // Handle case where err might not be a proper Error object
+  let error: ApiError;
+  if (err instanceof Error) {
+    error = err as ApiError;
+  } else {
+    // Convert non-Error objects to proper Error instances
+    error = new Error(String(err)) as ApiError;
+    error.statusCode = 500;
+  }
+
   console.error('API Error:', {
-    message: err.message,
-    stack: err.stack,
+    message: error.message,
+    stack: error.stack,
     url: req.url,
     method: req.method,
     timestamp: new Date().toISOString(),
+    rawError: err, // Log the original error for debugging
   });
 
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal server error';
+  const statusCode = error.statusCode || 500;
+  const message = error.message || 'Internal server error';
 
   res.status(statusCode).json({
     error: {
       message,
-      code: err.code || 'UNKNOWN_ERROR',
+      code: error.code || 'UNKNOWN_ERROR',
       timestamp: new Date().toISOString(),
       path: req.path,
     },

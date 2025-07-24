@@ -2,7 +2,7 @@ import { ConsolidatedFileSystem } from '@claude-config/core';
 import * as path from 'path';
 import * as os from 'os';
 import { minimatch } from 'minimatch';
-import { createError } from '../middleware/errorHandler.js';
+import { createError, ApiError } from '../middleware/errorHandler.js';
 import { getLogger } from '@claude-config/core';
 import { ConfigurationServiceAPI } from './configurationService.js';
 
@@ -239,7 +239,7 @@ export class FileSystemService {
       logger.debug(`Listed directory ${dirPath}: ${results.length} entries`);
       return results;
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(`Failed to list directory ${dirPath}: ${error.message}`);
       throw createError(`Failed to list directory: ${error.message}`, 500);
     }
@@ -264,7 +264,7 @@ export class FileSystemService {
       logger.debug(`Read file ${filePath}: ${content.length} characters`);
       return content;
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(`Failed to read file ${filePath}: ${error.message}`);
       throw createError(`Failed to read file: ${error.message}`, 500);
     }
@@ -303,7 +303,7 @@ export class FileSystemService {
       await ConsolidatedFileSystem.deleteFile(filePath);
       logger.debug(`Deleted file ${filePath}`);
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(`Failed to delete file ${filePath}: ${error.message}`);
       throw createError(`Failed to delete file: ${error.message}`, 500);
     }
@@ -383,7 +383,7 @@ export class FileSystemService {
       });
       logger.debug(`Renamed file from ${oldPath} to ${newPath}`);
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(
         `Failed to rename file from ${oldPath} to ${newPath}: ${error.message}`
       );
@@ -552,7 +552,7 @@ export class FileSystemService {
       );
       return results;
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(`Failed to search files in ${rootPath}: ${error.message}`);
       throw createError(`Failed to search files: ${error.message}`, 500);
     }
@@ -631,7 +631,7 @@ export class FileSystemService {
       logger.debug(`Built file tree for ${rootPath}`);
       return tree;
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(
         `Failed to build file tree for ${rootPath}: ${error.message}`
       );
@@ -846,7 +846,7 @@ export class FileSystemService {
       );
       return result;
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(
         `Failed to list project files for ${projectRoot}: ${error.message}`
       );
@@ -1071,7 +1071,7 @@ export class FileSystemService {
         projectRootPath: path.resolve(projectRoot),
       };
     } catch (error: any) {
-      if (error.status) throw error;
+      if (error instanceof Error && (error as ApiError).statusCode) throw error;
       logger.error(
         `Failed to build filtered file tree for ${projectRoot}: ${error.message}`
       );
