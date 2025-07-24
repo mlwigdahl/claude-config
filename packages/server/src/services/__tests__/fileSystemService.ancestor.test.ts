@@ -9,6 +9,8 @@ jest.mock('@claude-config/core', () => ({
     getFileStats: jest.fn(),
     listDirectory: jest.fn(),
     readFile: jest.fn(),
+    fileExists: jest.fn(),
+    directoryExists: jest.fn(),
   },
   getLogger: jest.fn(() => ({
     debug: jest.fn(),
@@ -34,6 +36,8 @@ describe('FileSystemService - Ancestor Directory Search', () => {
     beforeEach(() => {
       // Mock file system structure with ancestor directories
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const fileMap = {
           '/Users/test/dev/my-project': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/dev/my-project/.claude': { isDirectory: true, isFile: false, exists: true },
@@ -56,9 +60,10 @@ describe('FileSystemService - Ancestor Directory Search', () => {
           '/Users/test/CLAUDE.md': { isDirectory: false, isFile: true, exists: true },
           '/Users/test/Documents': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/random-file.txt': { isDirectory: false, isFile: true, exists: true },
+          '/Users': { isDirectory: true, isFile: false, exists: true }
         };
 
-        const info = fileMap[filePath as keyof typeof fileMap];
+        const info = fileMap[normalizedPath as keyof typeof fileMap];
         if (info) {
           return Promise.resolve({
             exists: info.exists,
@@ -73,6 +78,8 @@ describe('FileSystemService - Ancestor Directory Search', () => {
 
       // Mock directory listings
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const directoryMap = {
           '/Users/test/dev/my-project': ['CLAUDE.md', 'src', '.claude', 'package.json'],
           '/Users/test/dev/my-project/.claude': ['settings.json', 'commands'],
@@ -82,18 +89,41 @@ describe('FileSystemService - Ancestor Directory Search', () => {
           '/Users/test/dev/.claude/commands': ['global.md'],
           '/Users/test': ['dev', 'CLAUDE.md', '.claude', 'Documents', 'random-file.txt'],
           '/Users/test/.claude': ['settings.json'],
+          '/Users': ['test']
         };
 
-        const files = directoryMap[dirPath as keyof typeof directoryMap];
+        const files = directoryMap[normalizedPath as keyof typeof directoryMap];
         return Promise.resolve(files || []);
       });
 
       // Mock gitignore (empty for ancestor directories)
       mockConsolidatedFileSystem.readFile.mockImplementation((filePath: string) => {
-        if (filePath.endsWith('.gitignore')) {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        if (normalizedPath.endsWith('.gitignore')) {
           return Promise.resolve('node_modules/\n*.log\n');
         }
         return Promise.reject(new Error('File not found'));
+      });
+
+      // Mock fileExists
+      mockConsolidatedFileSystem.fileExists.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        if (normalizedPath.endsWith('.gitignore')) {
+          return Promise.resolve(true); // .gitignore exists
+        }
+        return Promise.resolve(false);
+      });
+
+      // Mock directoryExists
+      mockConsolidatedFileSystem.directoryExists.mockImplementation(async (dirPath: string): Promise<boolean> => {
+        try {
+          const stats = await mockConsolidatedFileSystem.getFileStats(dirPath);
+          return !!(stats.exists && stats.isDirectory);
+        } catch {
+          return false;
+        }
       });
     });
 
@@ -162,6 +192,8 @@ describe('FileSystemService - Ancestor Directory Search', () => {
     it('should handle missing .claude directories gracefully', async () => {
       // Mock scenario without .claude directories
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const fileMap = {
           '/Users/test/dev/my-project': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/dev/my-project/CLAUDE.md': { isDirectory: false, isFile: true, exists: true },
@@ -173,9 +205,10 @@ describe('FileSystemService - Ancestor Directory Search', () => {
           '/Users/test': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/CLAUDE.md': { isDirectory: false, isFile: true, exists: true },
           '/Users/test/Documents': { isDirectory: true, isFile: false, exists: true },
+          '/Users': { isDirectory: true, isFile: false, exists: true }
         };
 
-        const info = fileMap[filePath as keyof typeof fileMap];
+        const info = fileMap[normalizedPath as keyof typeof fileMap];
         if (info) {
           return Promise.resolve({
             exists: info.exists,
@@ -189,13 +222,16 @@ describe('FileSystemService - Ancestor Directory Search', () => {
       });
 
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const directoryMap = {
           '/Users/test/dev/my-project': ['CLAUDE.md', 'src', 'package.json'],
           '/Users/test/dev': ['my-project', 'CLAUDE.md', 'other-project'],
           '/Users/test': ['dev', 'CLAUDE.md', 'Documents'],
+          '/Users': ['test']
         };
 
-        const files = directoryMap[dirPath as keyof typeof directoryMap];
+        const files = directoryMap[normalizedPath as keyof typeof directoryMap];
         return Promise.resolve(files || []);
       });
 
@@ -255,6 +291,8 @@ describe('FileSystemService - Ancestor Directory Search', () => {
     it('should respect gitignore patterns in project directory but not ancestor directories', async () => {
       // Add ignored files to project directory
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const fileMap = {
           '/Users/test/dev/my-project': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/dev/my-project/.claude': { isDirectory: true, isFile: false, exists: true },
@@ -276,9 +314,10 @@ describe('FileSystemService - Ancestor Directory Search', () => {
           '/Users/test/.claude': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/.claude/settings.json': { isDirectory: false, isFile: true, exists: true },
           '/Users/test/CLAUDE.md': { isDirectory: false, isFile: true, exists: true },
+          '/Users': { isDirectory: true, isFile: false, exists: true }
         };
 
-        const info = fileMap[filePath as keyof typeof fileMap];
+        const info = fileMap[normalizedPath as keyof typeof fileMap];
         if (info) {
           return Promise.resolve({
             exists: info.exists,
@@ -292,6 +331,8 @@ describe('FileSystemService - Ancestor Directory Search', () => {
       });
 
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const directoryMap = {
           '/Users/test/dev/my-project': ['CLAUDE.md', 'src', '.claude', 'node_modules', 'app.log'],
           '/Users/test/dev/my-project/.claude': ['settings.json', 'commands'],
@@ -301,9 +342,10 @@ describe('FileSystemService - Ancestor Directory Search', () => {
           '/Users/test/dev/.claude/commands': ['global.md'],
           '/Users/test': ['dev', 'CLAUDE.md', '.claude'],
           '/Users/test/.claude': ['settings.json'],
+          '/Users': ['test']
         };
 
-        const files = directoryMap[dirPath as keyof typeof directoryMap];
+        const files = directoryMap[normalizedPath as keyof typeof directoryMap];
         return Promise.resolve(files || []);
       });
 
@@ -346,19 +388,22 @@ describe('FileSystemService - Ancestor Directory Search', () => {
       
       // Mock deep directory structure
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const paths = [
-          '/Users/test/dev/projects/client/my-project',
-          '/Users/test/dev/projects/client',
-          '/Users/test/dev/projects',
+          '/Users',
+          '/Users/test',
           '/Users/test/dev',
-          '/Users/test'
+          '/Users/test/dev/projects',
+          '/Users/test/dev/projects/client',
+          '/Users/test/dev/projects/client/my-project'
         ];
         
-        if (paths.includes(filePath) || filePath.endsWith('CLAUDE.md') || filePath.endsWith('.claude')) {
+        if (paths.includes(normalizedPath) || normalizedPath.endsWith('CLAUDE.md') || normalizedPath.endsWith('.claude')) {
           return Promise.resolve({
             exists: true,
-            isDirectory: !filePath.endsWith('.md'),
-            isFile: filePath.endsWith('.md'),
+            isDirectory: !normalizedPath.endsWith('.md'),
+            isFile: normalizedPath.endsWith('.md'),
             size: 1024,
             lastModified: new Date()
           });
@@ -367,15 +412,18 @@ describe('FileSystemService - Ancestor Directory Search', () => {
       });
 
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const directoryMap = {
           '/Users/test/dev/projects/client/my-project': ['CLAUDE.md'],
           '/Users/test/dev/projects/client': ['my-project', 'CLAUDE.md'],
           '/Users/test/dev/projects': ['client', 'CLAUDE.md'],
           '/Users/test/dev': ['projects', 'CLAUDE.md'],
           '/Users/test': ['dev', 'CLAUDE.md'],
+          '/Users': ['test']
         };
 
-        const files = directoryMap[dirPath as keyof typeof directoryMap];
+        const files = directoryMap[normalizedPath as keyof typeof directoryMap];
         return Promise.resolve(files || []);
       });
 

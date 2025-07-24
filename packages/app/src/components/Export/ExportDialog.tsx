@@ -43,7 +43,8 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
     commandFiles: true,
     includeInactive: false,
     recursive: true,
-    format: 'zip'
+    format: 'zip',
+    includeUserPath: false
   });
   
   const [isExporting, setIsExporting] = useState(false);
@@ -225,6 +226,15 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
                   }
                 >
                   Recurse into subdirectories
+                </Checkbox>
+                
+                <Checkbox
+                  isChecked={options.includeUserPath}
+                  onChange={(e) => 
+                    setOptions(prev => ({ ...prev, includeUserPath: e.target.checked }))
+                  }
+                >
+                  Include user configuration files (~/.claude)
                 </Checkbox>
               </VStack>
             </FormControl>

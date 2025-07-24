@@ -11,7 +11,6 @@ import {
   HStack,
   IconButton,
   Tooltip,
-  Spinner,
   Alert,
   AlertIcon,
   AlertTitle,
@@ -19,6 +18,7 @@ import {
 } from '@chakra-ui/react';
 import { SearchIcon, RepeatIcon } from '@chakra-ui/icons';
 import TreeNode from './TreeNode';
+import TreeLoadingAnimation from './TreeLoadingAnimation';
 import type { FileTreeNode, TreeSearchOptions } from '../../types/index.js';
 import { FileSystemService } from '../../services/fileSystemService.js';
 
@@ -235,14 +235,7 @@ const FileTree = forwardRef<FileTreeRef, FileTreeProps>(({
       {/* Tree Content */}
       <Box flex={1} overflowY="auto" ref={scrollContainerRef}>
         {isLoading ? (
-          <Flex justify="center" align="center" h="200px">
-            <VStack>
-              <Spinner size="lg" />
-              <Text fontSize="sm" color="gray.600">
-                Loading file tree...
-              </Text>
-            </VStack>
-          </Flex>
+          <TreeLoadingAnimation rootName={nodes.length > 0 ? nodes[0].name : undefined} />
         ) : filteredNodes.length === 0 ? (
           <Flex justify="center" align="center" h="200px">
             <VStack>

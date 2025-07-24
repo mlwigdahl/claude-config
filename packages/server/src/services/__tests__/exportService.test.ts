@@ -11,6 +11,7 @@ jest.mock('@claude-config/core', () => ({
     listDirectory: jest.fn(),
     getFileStats: jest.fn(),
     readFile: jest.fn(),
+    fileExists: jest.fn(),
   },
   getLogger: () => ({
     info: jest.fn(),
@@ -76,6 +77,9 @@ describe('ExportService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
+    // Default fileExists mock - return false for .gitignore files
+    mockedFS.fileExists.mockResolvedValue(false);
+    
     // Default readFile mock
     mockedFS.readFile.mockImplementation(async (filepath: string) => {
       const filename = path.basename(filepath);
@@ -94,7 +98,8 @@ describe('ExportService', () => {
       commandFiles: true,
       includeInactive: false,
       recursive: true,
-      format: 'zip'
+      format: 'zip',
+      includeUserPath: false
     };
 
     it('should fail if project path does not exist', async () => {
@@ -252,7 +257,8 @@ describe('ExportService', () => {
         commandFiles: true,
         includeInactive: false,
         recursive: true,
-        format: 'zip'
+        format: 'zip',
+        includeUserPath: false
       });
     });
   });
@@ -268,7 +274,9 @@ describe('ExportService', () => {
         commandFiles: true,
         includeInactive: false,
         recursive: true,
-        format: 'zip'
+        format: 'zip',
+        includeUserPath: false,
+        selectedFiles: undefined
       });
     });
 
@@ -279,7 +287,9 @@ describe('ExportService', () => {
         commandFiles: false,
         includeInactive: true,
         recursive: false,
-        format: 'zip' as const
+        format: 'zip' as const,
+        includeUserPath: true,
+        selectedFiles: ['test.md']
       };
       const validated = ExportService.validateOptions(options);
 

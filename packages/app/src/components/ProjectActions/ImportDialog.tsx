@@ -66,7 +66,8 @@ const ImportDialog: React.FC<ImportDialogProps> = ({
     previewResult: null,
     options: {
       overwriteConflicts: false,
-      preserveDirectoryStructure: true
+      preserveDirectoryStructure: true,
+      includeUserPath: false
     },
     error: null
   });
@@ -85,7 +86,8 @@ const ImportDialog: React.FC<ImportDialogProps> = ({
       previewResult: null,
       options: {
         overwriteConflicts: false,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false
       },
       error: null
     });
@@ -257,6 +259,10 @@ const ImportDialog: React.FC<ImportDialogProps> = ({
   const renderPreviewStep = () => {
     if (!state.previewResult) return null;
 
+    const projectFiles = state.previewResult.filesToImport.filter(f => f.source === 'project');
+    const userFiles = state.previewResult.filesToImport.filter(f => f.source === 'user');
+    const hasUserFiles = userFiles.length > 0;
+
     return (
       <VStack spacing={6} align="stretch">
         <Alert status="success">
@@ -265,6 +271,53 @@ const ImportDialog: React.FC<ImportDialogProps> = ({
             Found {state.previewResult.totalFiles} configuration files in the archive.
           </Text>
         </Alert>
+
+        {/* File breakdown by source */}
+        <VStack spacing={4} align="stretch">
+          {projectFiles.length > 0 && (
+            <Box>
+              <Text fontSize="sm" fontWeight="bold" mb={2}>
+                Project Files ({projectFiles.length}):
+              </Text>
+              <Box maxH="120px" overflowY="auto" pl={4}>
+                {projectFiles.map((file, index) => (
+                  <HStack key={index} spacing={2}>
+                    <Badge size="xs" colorScheme={
+                      file.type === 'memory' ? 'purple' :
+                      file.type === 'settings' ? 'blue' :
+                      'green'
+                    }>
+                      {file.type}
+                    </Badge>
+                    <Text fontSize="xs">{file.archivePath.replace(/^project\//, '')}</Text>
+                  </HStack>
+                ))}
+              </Box>
+            </Box>
+          )}
+          
+          {hasUserFiles && (
+            <Box>
+              <Text fontSize="sm" fontWeight="bold" mb={2}>
+                User Configuration Files ({userFiles.length}):
+              </Text>
+              <Box maxH="120px" overflowY="auto" pl={4}>
+                {userFiles.map((file, index) => (
+                  <HStack key={index} spacing={2}>
+                    <Badge size="xs" colorScheme={
+                      file.type === 'memory' ? 'purple' :
+                      file.type === 'settings' ? 'blue' :
+                      'green'
+                    }>
+                      {file.type}
+                    </Badge>
+                    <Text fontSize="xs">{file.archivePath.replace(/^user\//, '')}</Text>
+                  </HStack>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </VStack>
 
         {state.previewResult.conflicts.length > 0 && (
           <Alert status="warning">
@@ -275,28 +328,49 @@ const ImportDialog: React.FC<ImportDialogProps> = ({
               </Text>
               <Box maxH="150px" overflowY="auto">
                 {state.previewResult.conflicts.map((conflict, index) => (
-                  <Text key={index} fontSize="xs" pl={4}>
-                    • {conflict.targetPath.split('/').pop()}
-                  </Text>
+                  <HStack key={index} spacing={2} pl={4}>
+                    <Badge size="xs" colorScheme={conflict.source === 'user' ? 'orange' : 'blue'}>
+                      {conflict.source}
+                    </Badge>
+                    <Text fontSize="xs">{conflict.targetPath.split('/').pop()}</Text>
+                  </HStack>
                 ))}
               </Box>
             </VStack>
           </Alert>
         )}
 
-        <FormControl>
-          <Checkbox
-            isChecked={state.options.overwriteConflicts}
-            onChange={(e) => 
-              setState(prev => ({ 
-                ...prev, 
-                options: { ...prev.options, overwriteConflicts: e.target.checked }
-              }))
-            }
-          >
-            Overwrite existing files
-          </Checkbox>
-        </FormControl>
+        <VStack align="stretch" spacing={3}>
+          {hasUserFiles && (
+            <FormControl>
+              <Checkbox
+                isChecked={state.options.includeUserPath}
+                onChange={(e) => 
+                  setState(prev => ({ 
+                    ...prev, 
+                    options: { ...prev.options, includeUserPath: e.target.checked }
+                  }))
+                }
+              >
+                Import user configuration files (~/.claude)
+              </Checkbox>
+            </FormControl>
+          )}
+          
+          <FormControl>
+            <Checkbox
+              isChecked={state.options.overwriteConflicts}
+              onChange={(e) => 
+                setState(prev => ({ 
+                  ...prev, 
+                  options: { ...prev.options, overwriteConflicts: e.target.checked }
+                }))
+              }
+            >
+              Overwrite existing files
+            </Checkbox>
+          </FormControl>
+        </VStack>
 
         {state.error && (
           <Alert status="error">
@@ -339,6 +413,7 @@ const ImportDialog: React.FC<ImportDialogProps> = ({
                       <Tr>
                         <Th>File</Th>
                         <Th>Type</Th>
+                        <Th>Source</Th>
                         <Th>Existing Size</Th>
                         <Th>New Size</Th>
                       </Tr>
@@ -349,10 +424,15 @@ const ImportDialog: React.FC<ImportDialogProps> = ({
                           <Td fontSize="xs">{conflict.targetPath.split('/').pop()}</Td>
                           <Td>
                             <Badge colorScheme={
-                              conflict.type === 'memory' ? 'blue' :
-                              conflict.type === 'settings' ? 'green' : 'purple'
+                              conflict.type === 'memory' ? 'purple' :
+                              conflict.type === 'settings' ? 'blue' : 'green'
                             }>
                               {conflict.type}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            <Badge colorScheme={conflict.source === 'user' ? 'orange' : 'blue'}>
+                              {conflict.source}
                             </Badge>
                           </Td>
                           <Td fontSize="xs">{conflict.existingSize} bytes</Td>

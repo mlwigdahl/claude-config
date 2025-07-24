@@ -11,6 +11,8 @@ jest.mock('@claude-config/core', () => ({
     readFile: jest.fn(),
     writeFile: jest.fn(),
     createDirectory: jest.fn(),
+    directoryExists: jest.fn(),
+    fileExists: jest.fn(),
   },
   getLogger: jest.fn(() => ({
     debug: jest.fn(),
@@ -95,16 +97,18 @@ describe('FileSystemService - File Filtering', () => {
     beforeEach(() => {
       // Mock file system structure
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/');
         const isDirectory = 
-          filePath.endsWith('/Users') ||
-          filePath.endsWith('/Users/test') ||
-          filePath.endsWith('/Users/test/my-project') ||
-          filePath.endsWith('/Users/test/my-project/src') ||
-          filePath.endsWith('/Users/test/my-project/docs') ||
-          filePath.endsWith('/Users/test/my-project/.claude') ||
-          filePath.endsWith('/Users/test/my-project/.claude/commands') ||
-          filePath.endsWith('/Users/test/my-project/.git') ||
-          filePath.includes('directory');
+          normalizedPath === '/Users' ||
+          normalizedPath === '/Users/test' ||
+          normalizedPath === '/Users/test/my-project' ||
+          normalizedPath === '/Users/test/my-project/src' ||
+          normalizedPath === '/Users/test/my-project/docs' ||
+          normalizedPath === '/Users/test/my-project/.claude' ||
+          normalizedPath === '/Users/test/my-project/.claude/commands' ||
+          normalizedPath === '/Users/test/my-project/.git' ||
+          normalizedPath.includes('directory');
         
         const stats = {
           exists: true,
@@ -117,12 +121,15 @@ describe('FileSystemService - File Filtering', () => {
       });
 
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
+        // Normalize path for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/');
+        
         // Mock directory contents based on path
-        if (dirPath === '/Users') {
+        if (normalizedPath === '/Users') {
           return Promise.resolve(['test', 'other-user']);
-        } else if (dirPath === '/Users/test') {
+        } else if (normalizedPath === '/Users/test') {
           return Promise.resolve(['my-project', 'other-project', 'CLAUDE.md', 'settings.json', 'random-file.txt']);
-        } else if (dirPath === '/Users/test/my-project') {
+        } else if (normalizedPath === '/Users/test/my-project') {
           return Promise.resolve([
             'CLAUDE.md',
             'settings.json',
@@ -136,13 +143,13 @@ describe('FileSystemService - File Filtering', () => {
             '.git',
             '.claude'
           ]);
-        } else if (dirPath === '/Users/test/my-project/src') {
+        } else if (normalizedPath === '/Users/test/my-project/src') {
           return Promise.resolve(['index.js', 'utils.js', 'component.tsx']);
-        } else if (dirPath === '/Users/test/my-project/.claude') {
+        } else if (normalizedPath === '/Users/test/my-project/.claude') {
           return Promise.resolve(['commands', 'settings.json']);
-        } else if (dirPath === '/Users/test/my-project/.claude/commands') {
+        } else if (normalizedPath === '/Users/test/my-project/.claude/commands') {
           return Promise.resolve(['git-commit.md', 'deploy.md', 'test-command.md']);
-        } else if (dirPath === '/Users/test/my-project/docs') {
+        } else if (normalizedPath === '/Users/test/my-project/docs') {
           return Promise.resolve(['installation.md', 'usage.md', 'CLAUDE.md']);
         }
         return Promise.resolve([]);
@@ -188,6 +195,8 @@ describe('FileSystemService - File Filtering', () => {
       
       // Should include parent directories
       const parentDirs = result.parentDirectories.map(d => d.name);
+      console.log('Parent directories:', parentDirs);
+      console.log('Parent directory paths:', result.parentDirectories.map(d => d.path));
       expect(parentDirs).toContain('test'); // /Users/test
       expect(parentDirs).not.toContain('Users'); // Should not include root level
     });
@@ -203,10 +212,28 @@ describe('FileSystemService - File Filtering', () => {
     });
 
     it('should include configuration files from subdirectories', async () => {
+      // Test the isConfigurationFile method directly first
+      const testCommandFile = FileSystemService.isConfigurationFile(
+        'git-commit.md',
+        '/Users/test/my-project/.claude/commands/git-commit.md'
+      );
+      
+      if (!testCommandFile.valid) {
+        throw new Error(`isConfigurationFile failed for command file: ${JSON.stringify(testCommandFile)}`);
+      }
+      
       const result = await fileSystemService.listProjectFiles(projectRoot, rootPath);
       
-      // Should find command files in .claude/commands
-      const commandFiles = result.files.filter(f => f.path.includes('.claude/commands'));
+      // Add debug info if empty
+      if (result.files.length === 0) {
+        throw new Error(`No files found. Total directories: ${result.directories.length}, Directory names: ${result.directories.map(d => d.name).join(', ')}`);
+      }
+      
+      // Should find command files in .claude/commands (handle both / and \ path separators)
+      const commandFiles = result.files.filter(f => 
+        f.path.includes('.claude/commands') || f.path.includes('.claude\\commands')
+      );
+      
       expect(commandFiles).toHaveLength(3);
       expect(commandFiles.map(f => f.name)).toContain('git-commit.md');
       expect(commandFiles.map(f => f.name)).toContain('deploy.md');
@@ -250,11 +277,16 @@ describe('FileSystemService - File Filtering', () => {
 
     beforeEach(() => {
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path for consistent matching across platforms
+        const normalizedPath = filePath.replace(/\\/g, '/');
         const isDirectory = 
-          filePath.endsWith('/Users/test/my-project') ||
-          filePath.endsWith('/Users/test/my-project/src') ||
-          filePath.endsWith('/Users/test/my-project/src/utils') ||
-          filePath.includes('directory');
+          normalizedPath === '/Users' ||
+          normalizedPath === '/Users/test' ||
+          normalizedPath.endsWith('/Users/test/my-project') ||
+          normalizedPath.endsWith('/Users/test/my-project/src') ||
+          normalizedPath.endsWith('/Users/test/my-project/src/utils') ||
+          normalizedPath.includes('directory');
+        
         
         const stats = {
           exists: true,
@@ -267,15 +299,25 @@ describe('FileSystemService - File Filtering', () => {
       });
 
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
-        if (dirPath === '/Users/test/my-project') {
+        // Normalize path for consistent matching across platforms
+        const normalizedPath = dirPath.replace(/\\/g, '/');
+        if (normalizedPath === '/Users') {
+          return Promise.resolve(['test', 'other-user']);
+        } else if (normalizedPath === '/Users/test') {
+          return Promise.resolve(['my-project', 'other-project']);
+        } else if (normalizedPath.endsWith('/Users/test/my-project')) {
           return Promise.resolve(['CLAUDE.md', 'src', 'package.json', 'settings.json', 'random.txt']);
-        } else if (dirPath === '/Users/test/my-project/src') {
+        } else if (normalizedPath.endsWith('/Users/test/my-project/src')) {
           return Promise.resolve(['index.js', 'CLAUDE.md', 'utils']);
-        } else if (dirPath === '/Users/test/my-project/src/utils') {
+        } else if (normalizedPath.endsWith('/Users/test/my-project/src/utils')) {
           return Promise.resolve(['helper.js']);
         }
         return Promise.resolve([]);
       });
+
+      // Add missing mocks that might be needed
+      mockConsolidatedFileSystem.directoryExists.mockResolvedValue(true);
+      mockConsolidatedFileSystem.fileExists.mockResolvedValue(false);
     });
 
     it('should build a filtered tree structure', async () => {
@@ -289,6 +331,7 @@ describe('FileSystemService - File Filtering', () => {
       // Navigate to the project root within the tree
       const projectNode = result.tree.children!.find(c => c.name === 'my-project');
       expect(projectNode).toBeDefined();
+      
       expect(projectNode!.type).toBe('directory');
       
       // Should include configuration files in the project root

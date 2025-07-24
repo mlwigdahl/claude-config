@@ -9,6 +9,8 @@ jest.mock('@claude-config/core', () => ({
     getFileStats: jest.fn(),
     listDirectory: jest.fn(),
     readFile: jest.fn(),
+    fileExists: jest.fn(),
+    directoryExists: jest.fn(),
   },
   getLogger: jest.fn(() => ({
     debug: jest.fn(),
@@ -34,7 +36,9 @@ describe('FileSystemService - Gitignore Filtering', () => {
     beforeEach(() => {
       // Mock gitignore file content
       mockConsolidatedFileSystem.readFile.mockImplementation((filePath: string) => {
-        if (filePath === '/Users/test/my-project/.gitignore') {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        if (normalizedPath === '/Users/test/my-project/.gitignore') {
           return Promise.resolve(`
 # Comments should be ignored
 node_modules/
@@ -52,14 +56,19 @@ build/
 
       // Mock file system structure
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const isDirectory = 
-          filePath.endsWith('/Users/test/my-project') ||
-          filePath.endsWith('/Users/test/my-project/src') ||
-          filePath.endsWith('/Users/test/my-project/node_modules') ||
-          filePath.endsWith('/Users/test/my-project/dist') ||
-          filePath.endsWith('/Users/test/my-project/coverage') ||
-          filePath.endsWith('/Users/test/my-project/build') ||
-          filePath.endsWith('/Users/test/my-project/.claude');
+          normalizedPath === '/Users' ||
+          normalizedPath === '/Users/test' ||
+          normalizedPath === '/Users/test/my-project' ||
+          normalizedPath === '/Users/test/my-project/src' ||
+          normalizedPath === '/Users/test/my-project/node_modules' ||
+          normalizedPath === '/Users/test/my-project/dist' ||
+          normalizedPath === '/Users/test/my-project/coverage' ||
+          normalizedPath === '/Users/test/my-project/build' ||
+          normalizedPath === '/Users/test/my-project/.claude' ||
+          normalizedPath === '/Users/test/my-project/.claude/commands';
         
         const stats = {
           exists: true,
@@ -72,7 +81,14 @@ build/
       });
 
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
-        if (dirPath === '/Users/test/my-project') {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        
+        if (normalizedPath === '/Users') {
+          return Promise.resolve(['test']);
+        } else if (normalizedPath === '/Users/test') {
+          return Promise.resolve(['my-project']);
+        } else if (normalizedPath === '/Users/test/my-project') {
           return Promise.resolve([
             'CLAUDE.md',
             'settings.json',
@@ -89,12 +105,34 @@ build/
             'README.md',
             'package.json'
           ]);
-        } else if (dirPath === '/Users/test/my-project/src') {
+        } else if (normalizedPath === '/Users/test/my-project/src') {
           return Promise.resolve(['index.js', 'app.ts', 'CLAUDE.md']);
-        } else if (dirPath === '/Users/test/my-project/.claude') {
+        } else if (normalizedPath === '/Users/test/my-project/.claude') {
           return Promise.resolve(['commands', 'settings.json']);
+        } else if (normalizedPath === '/Users/test/my-project/.claude/commands') {
+          return Promise.resolve(['test-command.md']);
         }
         return Promise.resolve([]);
+      });
+
+      // Mock fileExists
+      mockConsolidatedFileSystem.fileExists.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        if (normalizedPath.endsWith('.gitignore')) {
+          return Promise.resolve(true); // .gitignore exists
+        }
+        return Promise.resolve(false);
+      });
+
+      // Mock directoryExists
+      mockConsolidatedFileSystem.directoryExists.mockImplementation(async (dirPath: string): Promise<boolean> => {
+        try {
+          const stats = await mockConsolidatedFileSystem.getFileStats(dirPath);
+          return !!(stats.exists && stats.isDirectory);
+        } catch {
+          return false;
+        }
       });
     });
 
@@ -102,6 +140,7 @@ build/
       const result = await fileSystemService.buildFilteredFileTree(projectRoot, rootPath);
       
       // Navigate to the project root within the tree
+      expect(result.tree.name).toBe('test');
       const projectNode = result.tree.children?.find(c => c.name === 'my-project');
       expect(projectNode).toBeDefined();
       
@@ -121,6 +160,7 @@ build/
       const result = await fileSystemService.buildFilteredFileTree(projectRoot, rootPath);
       
       // Navigate to the project root within the tree
+      expect(result.tree.name).toBe('test');
       const projectNode = result.tree.children?.find(c => c.name === 'my-project');
       expect(projectNode).toBeDefined();
       
@@ -147,6 +187,7 @@ build/
       const result = await fileSystemService.buildFilteredFileTree(projectRoot, rootPath);
       
       // Navigate to the project root within the tree
+      expect(result.tree.name).toBe('test');
       const projectNode = result.tree.children?.find(c => c.name === 'my-project');
       expect(projectNode).toBeDefined();
       
@@ -183,16 +224,26 @@ build/
 
       // Add nested structure
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
-        if (dirPath === '/Users/test/my-project') {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        
+        if (normalizedPath === '/Users') {
+          return Promise.resolve(['test']);
+        } else if (normalizedPath === '/Users/test') {
+          return Promise.resolve(['my-project']);
+        } else if (normalizedPath === '/Users/test/my-project') {
           return Promise.resolve(['src', 'coverage', 'build']);
-        } else if (dirPath === '/Users/test/my-project/src') {
+        } else if (normalizedPath === '/Users/test/my-project/src') {
           return Promise.resolve(['coverage', 'components']); // coverage inside src should NOT be ignored
         }
         return Promise.resolve([]);
       });
 
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
-        const isDirectory = !filePath.includes('.') || filePath.endsWith('coverage') || filePath.endsWith('build');
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        const isDirectory = !normalizedPath.includes('.') || normalizedPath.endsWith('coverage') || normalizedPath.endsWith('build') ||
+          normalizedPath === '/Users' || normalizedPath === '/Users/test' || normalizedPath.endsWith('/src') || normalizedPath.endsWith('/components');
         return Promise.resolve({
           exists: true,
           isDirectory,

@@ -44,6 +44,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   };
 
   const getFileTypeIcon = () => {
+    // Special icons for root sections
+    if (node.depth === 0 && node.name === 'Home Directory') {
+      return '🏠';
+    }
+    if (node.depth === 0 && node.name === 'Project Directory') {
+      return '💼';
+    }
+    
     // Use simple text-based icons for now
     if (node.type === 'directory') {
       return '📁';
@@ -119,9 +127,15 @@ const TreeNode: React.FC<TreeNodeProps> = ({
   const fileIcon = getFileTypeIcon();
   const iconColor = getFileTypeColor();
   const paddingLeft = node.depth * 20 + 8;
+  
+  // Check if this is a root section node
+  const isRootSection = node.depth === 0 && (
+    node.name === 'Home Directory' || 
+    node.name === 'Project Directory'
+  );
 
   return (
-    <Box>
+    <Box mb={isRootSection ? 2 : 0}>
       {/* Node Row */}
       <Flex
         align="center"
@@ -171,13 +185,15 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         {/* File/Directory Name */}
         <Box flex={1} minWidth={0} position="relative">
           <Text 
-            fontSize="sm" 
-            color={textColor}
-            fontWeight={node.isSelected ? 'semibold' : 'normal'}
+            fontSize={isRootSection ? "md" : "sm"} 
+            color={isRootSection ? "blue.600" : textColor}
+            fontWeight={isRootSection ? 'bold' : (node.isSelected ? 'semibold' : 'normal')}
             whiteSpace="nowrap"
             overflow="hidden"
             textOverflow="ellipsis"
             pr={node.fileType ? "70px" : "8px"} // Reserve space for badge
+            textTransform={isRootSection ? "uppercase" : "none"}
+            letterSpacing={isRootSection ? "wide" : "normal"}
           >
             {highlightText(node.name, searchQuery)}
           </Text>

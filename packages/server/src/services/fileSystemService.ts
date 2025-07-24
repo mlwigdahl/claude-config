@@ -84,6 +84,14 @@ export class FileSystemService {
 
     const gitignorePath = path.join(dirPath, '.gitignore');
 
+    // Check if file exists before trying to read it
+    const exists = await ConsolidatedFileSystem.fileExists(gitignorePath);
+    if (!exists) {
+      // No .gitignore file - cache empty patterns and return
+      this.gitignoreCache.set(dirPath, []);
+      return [];
+    }
+
     try {
       const content = await ConsolidatedFileSystem.readFile(gitignorePath);
       const patterns = content
@@ -95,7 +103,7 @@ export class FileSystemService {
       this.gitignoreCache.set(dirPath, patterns);
       return patterns;
     } catch (_error) {
-      // No .gitignore file or can't read it
+      // Error reading the file - treat as empty
       this.gitignoreCache.set(dirPath, []);
       return [];
     }
@@ -441,9 +449,11 @@ export class FileSystemService {
       }
 
       const newPath = path.join(directory, newFileName);
+      // Normalize path separators to match input path format
+      const normalizedNewPath = filePath.includes('/') ? newPath.replace(/\\/g, '/') : newPath;
 
       // Check if target file already exists
-      const targetStats = await ConsolidatedFileSystem.getFileStats(newPath);
+      const targetStats = await ConsolidatedFileSystem.getFileStats(normalizedNewPath);
       if (targetStats.exists) {
         const targetType = newType === 'project' ? 'project' : 'local';
         throw createError(
@@ -453,15 +463,15 @@ export class FileSystemService {
       }
 
       // Perform the rename operation
-      await ConsolidatedFileSystem.moveFile(filePath, newPath, {
+      await ConsolidatedFileSystem.moveFile(filePath, normalizedNewPath, {
         createDirs: true,
         overwrite: false,
       });
 
       logger.info(
-        `Successfully switched settings file type: ${filePath} -> ${newPath}`
+        `Successfully switched settings file type: ${filePath} -> ${normalizedNewPath}`
       );
-      return { newPath, newType };
+      return { newPath: normalizedNewPath, newType };
     } catch (error: any) {
       if (error.status) {
         throw error; // Re-throw our own errors
@@ -692,7 +702,8 @@ export class FileSystemService {
    */
   static isConfigurationFile(
     fileName: string,
-    filePath?: string
+    filePath?: string,
+    isHomeContext: boolean = false
   ): {
     type: 'memory' | 'settings' | 'command' | null;
     valid: boolean;
@@ -710,7 +721,7 @@ export class FileSystemService {
 
     // Check for invalid manual renames - files ending with .inactive that aren't proper config files
     if (isInactive) {
-      const baseCheck = this.isConfigurationFile(actualFileName, filePath);
+      const baseCheck = this.isConfigurationFile(actualFileName, filePath, isHomeContext);
       if (!baseCheck.valid) {
         return { type: null, valid: false };
       }
@@ -725,7 +736,18 @@ export class FileSystemService {
       return { type: 'settings', valid: true };
     }
 
-    // Memory files: CLAUDE.md specifically (always memory, regardless of location)
+    // In home context, memory files must be in .claude directory
+    if (isHomeContext && extension === 'md' && filePath) {
+      const normalizedPath = filePath.replace(/\\/g, '/');
+      const isInClaudeDir = normalizedPath.includes('/.claude/') || normalizedPath.includes('\\.claude\\');
+      
+      if (!isInClaudeDir) {
+        // In home context, .md files outside .claude are not configuration files
+        return { type: null, valid: false };
+      }
+    }
+
+    // Memory files: CLAUDE.md specifically (always memory in project context, or in .claude in home context)
     if (actualFileName === 'CLAUDE.md') {
       return { type: 'memory', valid: true };
     }
@@ -740,6 +762,7 @@ export class FileSystemService {
     }
 
     // Memory files: any .md file that is not CLAUDE.md and not in .claude/commands (nonstandard memory files)
+    // In home context, this will only apply to files already verified to be in .claude
     if (extension === 'md' && actualFileName !== 'CLAUDE.md') {
       return { type: 'memory', valid: true };
     }
@@ -872,17 +895,23 @@ export class FileSystemService {
     rootPath: string,
     result: ProjectFilesResult
   ): Promise<void> {
-    const rootResolved = path.resolve(rootPath);
+    // Normalize paths for comparison (handle Windows vs Unix path differences)
+    const rootResolved = path.resolve(rootPath).replace(/\\/g, '/');
     let currentPath = path.dirname(projectRoot);
 
     while (
-      currentPath !== rootResolved &&
+      path.resolve(currentPath).replace(/\\/g, '/') !== rootResolved &&
       currentPath !== path.dirname(currentPath)
     ) {
       try {
         const parentStats =
           await ConsolidatedFileSystem.getFileStats(currentPath);
         if (!parentStats.exists || !parentStats.isDirectory) {
+          break;
+        }
+
+        // Check if we're at root level before adding to parent directories
+        if (path.resolve(currentPath).replace(/\\/g, '/') === rootResolved) {
           break;
         }
 
@@ -937,31 +966,81 @@ export class FileSystemService {
     rootPath: string
   ): Promise<FilteredFileTreeResult> {
     try {
+      logger.info(`Building filtered file tree - Project: ${projectRoot}, Root: ${rootPath}`);
+      
       const stats = {
         totalFiles: 0,
         totalDirectories: 0,
         configurationFiles: { memory: 0, settings: 0, command: 0 },
       };
 
+      // Check if we're scanning the home directory
+      const homeDir = os.homedir();
+      const isHomeDirectory = path.resolve(rootPath) === path.resolve(homeDir);
+      
+      if (isHomeDirectory) {
+        logger.info('Detected home directory scan - will only scan .claude subdirectory');
+      }
+
       // Read gitignore patterns from project root
       const gitignorePatterns = await this.readGitignore(projectRoot);
 
-      // Build the tree including parent directories
-      const tree = await this.buildTreeWithParents(
-        projectRoot,
-        rootPath,
-        stats,
-        gitignorePatterns
-      );
+      // Build the tree
+      let tree;
+      if (isHomeDirectory) {
+        // Special handling for home directory - only scan .claude
+        tree = await this.buildHomeDirectoryTree(homeDir, stats, gitignorePatterns);
+      } else {
+        // Normal project tree building
+        tree = await this.buildTreeWithParents(
+          projectRoot,
+          rootPath,
+          stats,
+          gitignorePatterns
+        );
+      }
 
-      // Debug logging (commented out for production)
-      // console.log('=== Tree Building Debug ===');
-      // console.log('Project root:', projectRoot);
-      // console.log('Root path:', rootPath);
-      // console.log('Resolved project root:', path.resolve(projectRoot));
-      // console.log('Tree root name:', tree.name);
-      // console.log('Tree root path:', tree.path);
-      // console.log('=== End Debug ===');
+      logger.info(`Tree built for ${rootPath}, checking structure...`);
+      
+      // Ensure we always have a valid tree structure
+      if (!tree || (!tree.children && tree.type === 'directory')) {
+        // Create a minimal tree structure if empty
+        logger.warn(`Empty tree for ${projectRoot}, creating minimal structure`);
+        const minimalTree: FileTreeNode = {
+          name: path.basename(projectRoot),
+          path: projectRoot,
+          type: 'directory',
+          children: [],
+          size: 0,
+          lastModified: new Date(),
+        };
+        
+        // Debug logging
+        logger.info('=== Tree Building Debug ===');
+        logger.info('Project root', { projectRoot });
+        logger.info('Root path', { rootPath });
+        logger.info('Stats', { stats });
+        logger.info('Tree structure', { tree: JSON.stringify(minimalTree, null, 2) });
+        logger.info('=== End Debug ===');
+        
+        return {
+          tree: minimalTree,
+          totalFiles: 0,
+          totalDirectories: 1,
+          configurationFiles: { memory: 0, settings: 0, command: 0 },
+          projectRootPath: path.resolve(projectRoot),
+        };
+      }
+
+      // Debug logging
+      logger.info('=== Tree Building Success ===');
+      logger.info('Project root', { projectRoot });
+      logger.info('Root path', { rootPath });
+      logger.info('Stats', { stats });
+      logger.info('Tree root name', { name: tree.name });
+      logger.info('Tree root path', { path: tree.path });
+      logger.info('Tree children count', { count: tree.children?.length || 0 });
+      logger.info('=== End Debug ===');
 
       return {
         tree,
@@ -979,6 +1058,64 @@ export class FileSystemService {
         `Failed to build filtered file tree: ${error.message}`,
         500
       );
+    }
+  }
+
+  /**
+   * Build special tree for home directory - only scan .claude subdirectory
+   */
+  private async buildHomeDirectoryTree(
+    homeDir: string,
+    stats: any,
+    gitignorePatterns: string[]
+  ): Promise<FileTreeNode> {
+    try {
+      // Create the home directory node
+      const homeNode: FileTreeNode = {
+        name: path.basename(homeDir) || 'Home',
+        path: homeDir,
+        type: 'directory',
+        children: [],
+        size: 0,
+        lastModified: new Date(),
+      };
+      
+      stats.totalDirectories++;
+      
+      // Check if .claude directory exists
+      const claudePath = path.join(homeDir, '.claude');
+      const claudeExists = await ConsolidatedFileSystem.directoryExists(claudePath);
+      
+      if (claudeExists) {
+        const claudeStats = await ConsolidatedFileSystem.getFileStats(claudePath);
+        if (claudeStats.isDirectory) {
+          // Build the .claude directory tree
+          const claudeNode = await this.buildFilteredTreeNode(
+            claudePath,
+            stats,
+            homeDir,  // Use homeDir as projectRoot for consistency
+            gitignorePatterns,
+            true  // isHomeContext - memory files only in .claude
+          );
+          
+          if (claudeNode) {
+            homeNode.children = [claudeNode];
+          }
+        }
+      }
+      
+      return homeNode;
+    } catch (error: any) {
+      logger.error(`Failed to build home directory tree: ${error.message}`);
+      // Return minimal structure on error
+      return {
+        name: path.basename(homeDir) || 'Home',
+        path: homeDir,
+        type: 'directory',
+        children: [],
+        size: 0,
+        lastModified: new Date(),
+      };
     }
   }
 
@@ -1161,14 +1298,16 @@ export class FileSystemService {
             // Only include configuration files
             const configCheck = FileSystemService.isConfigurationFile(
               entry,
-              childPath
+              childPath,
+              false  // Not home context for ancestor directories
             );
             if (configCheck.valid) {
               const fileNode = await this.buildFilteredTreeNode(
                 childPath,
                 stats,
                 projectRoot,
-                gitignorePatterns
+                gitignorePatterns,
+                false  // Not home context for ancestor directories
               );
               dirNode.children!.push(fileNode);
             }
@@ -1218,7 +1357,8 @@ export class FileSystemService {
     nodePath: string,
     stats: any,
     projectRoot: string,
-    gitignorePatterns: string[]
+    gitignorePatterns: string[],
+    isHomeContext: boolean = false
   ): Promise<FileTreeNode> {
     const nodeStats = await ConsolidatedFileSystem.getFileStats(nodePath);
     const nodeName = path.basename(nodePath);
@@ -1267,21 +1407,24 @@ export class FileSystemService {
                 childPath,
                 stats,
                 projectRoot,
-                gitignorePatterns
+                gitignorePatterns,
+                isHomeContext
               );
               children.push(childNode);
             } else if (childStats.isFile) {
               // Only include configuration files
               const configCheck = FileSystemService.isConfigurationFile(
                 entry,
-                childPath
+                childPath,
+                isHomeContext
               );
               if (configCheck.valid) {
                 const childNode = await this.buildFilteredTreeNode(
                   childPath,
                   stats,
                   projectRoot,
-                  gitignorePatterns
+                  gitignorePatterns,
+                  isHomeContext
                 );
                 children.push(childNode);
               }
@@ -1581,8 +1724,8 @@ export class FileSystemService {
       logger.debug(`Default directory for platform ${platform}: ${defaultDirectory}`);
       
       return {
-        defaultDirectory,
-        homeDirectory: homeDir,
+        defaultDirectory: platform === 'win32' ? defaultDirectory : defaultDirectory.replace(/\\/g, '/'),
+        homeDirectory: platform === 'win32' ? homeDir : homeDir.replace(/\\/g, '/'),
         platform,
         drives: drives.length > 0 ? drives : undefined,
       };

@@ -74,7 +74,8 @@ describe('Export Routes', () => {
         commandFiles: true,
         includeInactive: false,
         recursive: true,
-        format: 'zip'
+        format: 'zip',
+        includeUserPath: false
       });
 
       mockedExportService.exportProject.mockResolvedValue({
@@ -130,7 +131,8 @@ describe('Export Routes', () => {
         commandFiles: true,
         includeInactive: false,
         recursive: true,
-        format: 'zip'
+        format: 'zip',
+        includeUserPath: false
       });
 
       mockedExportService.exportProject.mockResolvedValue({
@@ -157,7 +159,8 @@ describe('Export Routes', () => {
         commandFiles: true,
         includeInactive: false,
         recursive: true,
-        format: 'zip' as const
+        format: 'zip' as const,
+        includeUserPath: false
       };
 
       mockedExportService.validateOptions.mockReturnValue(defaultOptions);
@@ -191,7 +194,8 @@ describe('Export Routes', () => {
         commandFiles: true,
         includeInactive: false,
         recursive: true,
-        format: 'zip' as const
+        format: 'zip' as const,
+        includeUserPath: false
       };
 
       mockedExportService.getDefaultOptions.mockReturnValue(defaultOptions);

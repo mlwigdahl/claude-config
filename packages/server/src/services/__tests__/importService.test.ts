@@ -117,7 +117,8 @@ describe('ImportService', () => {
   describe('previewImport', () => {
     const defaultOptions: ImportOptions = {
       overwriteConflicts: false,
-      preserveDirectoryStructure: true
+      preserveDirectoryStructure: true,
+      includeUserPath: false
     };
 
     it('should fail if target path does not exist', async () => {
@@ -290,7 +291,8 @@ describe('ImportService', () => {
   describe('importProject', () => {
     const defaultOptions: ImportOptions = {
       overwriteConflicts: false,
-      preserveDirectoryStructure: true
+      preserveDirectoryStructure: true,
+      includeUserPath: false
     };
 
     it('should import files without conflicts successfully', async () => {
@@ -381,7 +383,8 @@ describe('ImportService', () => {
     it('should overwrite conflicting files when overwriteConflicts is true', async () => {
       const overwriteOptions: ImportOptions = {
         overwriteConflicts: true,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false
       };
 
       const entries = [
@@ -439,7 +442,8 @@ describe('ImportService', () => {
 
       expect(defaults).toEqual({
         overwriteConflicts: false,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false
       });
     });
   });
@@ -451,14 +455,18 @@ describe('ImportService', () => {
 
       expect(validated).toEqual({
         overwriteConflicts: true,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false,
+        selectedFiles: undefined
       });
     });
 
     it('should preserve provided options', () => {
       const options = {
         overwriteConflicts: true,
-        preserveDirectoryStructure: false
+        preserveDirectoryStructure: false,
+        includeUserPath: true,
+        selectedFiles: ['test.md']
       };
       const validated = ImportService.validateOptions(options);
 

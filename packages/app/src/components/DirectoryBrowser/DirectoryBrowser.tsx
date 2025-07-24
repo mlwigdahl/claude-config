@@ -340,7 +340,7 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({
                 Selected Directory:
               </Text>
               <Text fontSize="sm" fontWeight="medium" wordBreak="break-all">
-                {currentPath}
+                {currentPath.replace(/\\/g, '/')}
               </Text>
             </Box>
           </VStack>

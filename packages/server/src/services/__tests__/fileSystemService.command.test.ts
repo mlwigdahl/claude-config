@@ -1,14 +1,18 @@
 import { FileSystemService } from '../fileSystemService.js';
 import { ConsolidatedFileSystem } from '@claude-config/core';
 import * as path from 'path';
+import * as os from 'os';
 import { jest } from '@jest/globals';
 
-// Mock the ConsolidatedFileSystem
+// Mock dependencies
+jest.mock('os');
 jest.mock('@claude-config/core', () => ({
   ConsolidatedFileSystem: {
     getFileStats: jest.fn(),
     listDirectory: jest.fn(),
     readFile: jest.fn(),
+    fileExists: jest.fn(),
+    directoryExists: jest.fn(),
   },
   getLogger: jest.fn(() => ({
     debug: jest.fn(),
@@ -17,6 +21,8 @@ jest.mock('@claude-config/core', () => ({
     error: jest.fn(),
   }))
 }));
+
+const mockOs = os as jest.Mocked<typeof os>;
 
 describe('FileSystemService - Command File Identification', () => {
   let fileSystemService: FileSystemService;
@@ -141,9 +147,16 @@ describe('FileSystemService - Command File Identification', () => {
     const rootPath = '/Users';
 
     beforeEach(() => {
+      // Mock os.homedir
+      mockOs.homedir.mockReturnValue('/Users/test');
       // Mock file system structure for .claude directory
       mockConsolidatedFileSystem.getFileStats.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const fileMap = {
+          '/': { isDirectory: true, isFile: false, exists: true },
+          '/Users': { isDirectory: true, isFile: false, exists: true },
+          '/Users/test': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/project': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/project/.claude': { isDirectory: true, isFile: false, exists: true },
           '/Users/test/project/.claude/settings.json': { isDirectory: false, isFile: true, exists: true },
@@ -158,10 +171,10 @@ describe('FileSystemService - Command File Identification', () => {
           '/Users/test/project/.claude/other-dir/file.txt': { isDirectory: false, isFile: true, exists: true },
           '/Users/test/project/CLAUDE.md': { isDirectory: false, isFile: true, exists: true },
           '/Users/test/project/README.md': { isDirectory: false, isFile: true, exists: true },
-          '/Users/test': { isDirectory: true, isFile: false, exists: true },
+          '/Users/test/project/src': { isDirectory: true, isFile: false, exists: true },
         };
 
-        const info = fileMap[filePath as keyof typeof fileMap];
+        const info = fileMap[normalizedPath as keyof typeof fileMap];
         if (info) {
           return Promise.resolve({
             exists: info.exists,
@@ -176,33 +189,115 @@ describe('FileSystemService - Command File Identification', () => {
 
       // Mock directory listings
       mockConsolidatedFileSystem.listDirectory.mockImplementation((dirPath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = dirPath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
         const directoryMap = {
+          '/Users': ['test'],
+          '/Users/test': ['project'],
           '/Users/test/project': ['CLAUDE.md', 'README.md', '.claude', 'src'],
           '/Users/test/project/.claude': ['settings.json', 'settings.local.json', 'README.md', 'commands', 'other-dir'],
           '/Users/test/project/.claude/commands': ['test.md', 'help.md', 'nested'],
           '/Users/test/project/.claude/commands/nested': ['deep.md'],
           '/Users/test/project/.claude/other-dir': ['file.txt'],
-          '/Users/test': ['project'],
+          '/Users/test/project/src': []
         };
 
-        const files = directoryMap[dirPath as keyof typeof directoryMap];
+        const files = directoryMap[normalizedPath as keyof typeof directoryMap];
         return Promise.resolve(files || []);
       });
 
       // Mock empty gitignore
       mockConsolidatedFileSystem.readFile.mockImplementation((filePath: string) => {
+        // Return empty content for .gitignore files
         if (filePath.endsWith('.gitignore')) {
           return Promise.resolve('');
         }
         return Promise.reject(new Error('File not found'));
       });
+
+      // Mock fileExists
+      mockConsolidatedFileSystem.fileExists.mockImplementation((filePath: string) => {
+        // Normalize path to Unix style for consistent matching
+        const normalizedPath = filePath.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+        
+        // Check if it's a .gitignore file in the project root
+        if (normalizedPath === '/Users/test/project/.gitignore') {
+          return Promise.resolve(false); // No .gitignore in this test
+        }
+        // Check for known files
+        const knownFiles = [
+          '/Users/test/project/.claude/settings.json',
+          '/Users/test/project/.claude/settings.local.json',
+          '/Users/test/project/.claude/README.md',
+          '/Users/test/project/.claude/commands/test.md',
+          '/Users/test/project/.claude/commands/help.md',
+          '/Users/test/project/.claude/commands/nested/deep.md',
+          '/Users/test/project/CLAUDE.md',
+          '/Users/test/project/README.md'
+        ];
+        return Promise.resolve(knownFiles.includes(normalizedPath));
+      });
+
+      // Mock directoryExists
+      mockConsolidatedFileSystem.directoryExists.mockImplementation(async (dirPath: string): Promise<boolean> => {
+        try {
+          const stats = await mockConsolidatedFileSystem.getFileStats(dirPath);
+          return !!(stats.exists && stats.isDirectory);
+        } catch {
+          return false;
+        }
+      });
+    });
+
+    it('should build basic tree structure', async () => {
+      const result = await fileSystemService.buildFilteredFileTree(projectRoot, rootPath);
+      
+      // Basic tree validation
+      expect(result).toBeDefined();
+      expect(result.tree).toBeDefined();
+      expect(result.tree.type).toBe('directory');
+      
+      // Build tree structure string for debugging
+      const buildTreeString = (node: any, depth = 0): string => {
+        const indent = '  '.repeat(depth);
+        let str = `${indent}${node.name} (${node.type})\n`;
+        if (node.children) {
+          node.children.forEach((child: any) => {
+            str += buildTreeString(child, depth + 1);
+          });
+        }
+        return str;
+      };
+      
+      const treeStr = buildTreeString(result.tree);
+      const configStr = JSON.stringify(result.configurationFiles, null, 2);
+      
+      // Validate basic structure
+      expect(result.tree.name).toBe('test');
+      expect(result.tree.children).toBeDefined();
+      expect(result.tree.children!.length).toBeGreaterThan(0);
+      
+      // Should have found configuration files
+      expect(result.configurationFiles.memory).toBeGreaterThan(0);
+      expect(result.configurationFiles.settings).toBeGreaterThan(0);
     });
 
     it('should include direct files in .claude directory only if they are config files', async () => {
       const result = await fileSystemService.buildFilteredFileTree(projectRoot, rootPath);
       
-      // Navigate to project root then .claude directory
+      expect(result.tree).toBeDefined();
+      expect(result.tree.name).toBe('test'); // Root is 'test' based on the tree building logic
+      
+      // Navigate to project directory which should be a direct child
       const projectNode = result.tree.children?.find(c => c.name === 'project');
+      
+      // Debug what's actually in the project node
+      if (!projectNode) {
+        console.error('Project node not found. Tree structure:', JSON.stringify(result.tree, null, 2));
+      } else {
+        console.log('Project node found. Children:', projectNode.children?.map(c => ({ name: c.name, type: c.type })));
+      }
+      
       expect(projectNode).toBeDefined();
       
       const claudeNode = projectNode?.children?.find(c => c.name === '.claude');
@@ -224,7 +319,7 @@ describe('FileSystemService - Command File Identification', () => {
     it('should include commands directory with all .md files at any depth', async () => {
       const result = await fileSystemService.buildFilteredFileTree(projectRoot, rootPath);
       
-      // Navigate to project root then .claude/commands directory
+      // Navigate to project directory
       const projectNode = result.tree.children?.find(c => c.name === 'project');
       expect(projectNode).toBeDefined();
       
@@ -255,7 +350,7 @@ describe('FileSystemService - Command File Identification', () => {
     it('should not include non-commands subdirectories in .claude directory', async () => {
       const result = await fileSystemService.buildFilteredFileTree(projectRoot, rootPath);
       
-      // Navigate to project root then .claude directory
+      // Navigate to project directory
       const projectNode = result.tree.children?.find(c => c.name === 'project');
       expect(projectNode).toBeDefined();
       

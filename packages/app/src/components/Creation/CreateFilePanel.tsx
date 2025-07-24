@@ -123,6 +123,16 @@ const CreateFilePanel: React.FC = () => {
   const [commandPathWarning, setCommandPathWarning] = useState<string>('');
   const [isCommandPathValid, setIsCommandPathValid] = useState<boolean>(true);
   const [directoryCreationInfo, setDirectoryCreationInfo] = useState<string>('');
+  const [homeDirectory, setHomeDirectory] = useState<string>('');
+
+  // Get home directory on mount
+  useEffect(() => {
+    FileSystemService.getDefaultDirectory().then(info => {
+      setHomeDirectory(info.homeDirectory);
+    }).catch(() => {
+      // Ignore errors, home directory is optional
+    });
+  }, []);
 
   // Update directory path when file type or selected node changes
   useEffect(() => {
@@ -130,7 +140,7 @@ const CreateFilePanel: React.FC = () => {
       ? selectedNode.path 
       : selectedNode?.path ? selectedNode.path.substring(0, selectedNode.path.lastIndexOf('/')) : undefined;
     
-    let preferredPath = getPreferredDirectoryPath(fileType, selectedPath, projectRoot);
+    let preferredPath = getPreferredDirectoryPath(fileType, selectedPath, projectRoot, selectedNode?.id, homeDirectory);
     
     // Auto-fix path for settings files
     if (fileType === 'settings') {
@@ -142,8 +152,10 @@ const CreateFilePanel: React.FC = () => {
       preferredPath = autoFixCommandPath(preferredPath);
     }
     
-    setDirectoryPath(preferredPath);
-  }, [fileType, selectedNode, projectRoot]);
+    // Normalize path for display (always use forward slashes)
+    const normalizedPath = preferredPath.replace(/\\/g, '/');
+    setDirectoryPath(normalizedPath);
+  }, [fileType, selectedNode, projectRoot, homeDirectory]);
 
   // Validate directory path whenever it changes
   useEffect(() => {
@@ -246,7 +258,8 @@ const CreateFilePanel: React.FC = () => {
           }
           
           if (newPath && newPath !== directoryPath) {
-            setDirectoryPath(newPath);
+            // Normalize path for display
+            setDirectoryPath(newPath.replace(/\\/g, '/'));
           }
         }
       } else {
@@ -255,7 +268,8 @@ const CreateFilePanel: React.FC = () => {
           const commandsIndex = directoryPath.lastIndexOf('/.claude/commands');
           const basePath = directoryPath.substring(0, commandsIndex + 17); // Include '/.claude/commands'
           if (basePath !== directoryPath) {
-            setDirectoryPath(basePath);
+            // Normalize path for display
+            setDirectoryPath(basePath.replace(/\\/g, '/'));
           }
         }
       }
@@ -415,7 +429,7 @@ const CreateFilePanel: React.FC = () => {
 
       toast({
         title: 'File created successfully',
-        description: `Created ${result.data?.name} in ${targetPath}`,
+        description: `Created ${result.data?.name} in ${targetPath.replace(/\\/g, '/')}`,
         status: 'success',
         duration: 3000,
         isClosable: true,
@@ -631,7 +645,7 @@ const CreateFilePanel: React.FC = () => {
                 <Input
                   value={directoryPath}
                   onChange={(e) => setDirectoryPath(e.target.value)}
-                  placeholder={projectRoot || '/path/to/directory'}
+                  placeholder={projectRoot?.replace(/\\/g, '/') || '/path/to/directory'}
                   borderColor={!pathValidation.isValid ? 'red.500' : undefined}
                   _focus={{
                     borderColor: !pathValidation.isValid ? 'red.500' : 'blue.500',
@@ -648,8 +662,8 @@ const CreateFilePanel: React.FC = () => {
                 {!pathValidation.isValid && pathValidation.suggestedPath && (
                   <FormHelperText>
                     <Text fontSize="xs" color="blue.500" cursor="pointer" 
-                          onClick={() => setDirectoryPath(pathValidation.suggestedPath!)}>
-                      Click to use suggested path: {pathValidation.suggestedPath}
+                          onClick={() => setDirectoryPath(pathValidation.suggestedPath!.replace(/\\/g, '/'))}>
+                      Click to use suggested path: {pathValidation.suggestedPath?.replace(/\\/g, '/')}
                     </Text>
                   </FormHelperText>
                 )}

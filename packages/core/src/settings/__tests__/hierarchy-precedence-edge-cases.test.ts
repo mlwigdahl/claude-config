@@ -5,7 +5,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import * as path from 'path';
 import { tmpdir } from 'os';
 import { discoverSettingsFiles } from '../discovery.js';
 import { SettingsFileType, SettingsConfig } from '../../types/settings.js';
@@ -155,7 +156,8 @@ describe('Settings Hierarchy Precedence Edge Cases', () => {
 
       // Create directories and files
       for (const item of structure) {
-        await fs.mkdir(item.path.substring(0, item.path.lastIndexOf('/')), { recursive: true });
+        const dir = path.dirname(item.path);
+        await fs.mkdir(dir, { recursive: true });
         await fs.writeFile(item.path, JSON.stringify(item.content, null, 2));
       }
 
@@ -230,7 +232,8 @@ describe('Settings Hierarchy Precedence Edge Cases', () => {
       ];
 
       for (const item of structure) {
-        await fs.mkdir(item.path.substring(0, item.path.lastIndexOf('/')), { recursive: true });
+        const dir = path.dirname(item.path);
+        await fs.mkdir(dir, { recursive: true });
         await fs.writeFile(item.path, JSON.stringify(item.content, null, 2));
       }
 
@@ -304,6 +307,11 @@ describe('Settings Hierarchy Precedence Edge Cases', () => {
     });
 
     it('should handle symbolic links correctly', async () => {
+      // Skip on Windows as symlinks require admin privileges
+      if (process.platform === 'win32') {
+        console.log('Skipping symlink test on Windows');
+        return;
+      }
       // Create original settings file
       await fs.mkdir(join(testDir, '.claude'), { recursive: true });
       await fs.mkdir(join(testDir, 'shared'), { recursive: true });

@@ -428,9 +428,10 @@ export class PathUtils {
 
   /**
    * Get relative path between two paths
+   * Returns path with forward slashes for cross-platform consistency
    */
   static relative(from: string, to: string): string {
-    return path.relative(from, to);
+    return path.relative(from, to).replace(/\\/g, '/');
   }
 
   /**

@@ -83,7 +83,7 @@ const ProjectTree: React.FC = () => {
           <VStack spacing={3} align="stretch" h="full" minH={0}>
             <VStack spacing={2} align="stretch" flexShrink={0}>
               <Text fontSize="xs" color="gray.600" wordBreak="break-all">
-                {projectRoot}
+                {projectRoot?.replace(/\\/g, '/')}
               </Text>
               
               <Button

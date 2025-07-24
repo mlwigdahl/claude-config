@@ -39,7 +39,8 @@ describe('Import Routes', () => {
             content: '# Test',
             type: 'memory',
             isInactive: false,
-            size: 6
+            size: 6,
+            source: 'project'
           }
         ]
       };
@@ -125,7 +126,8 @@ describe('Import Routes', () => {
 
       mockedImportService.validateOptions.mockReturnValue({
         overwriteConflicts: false,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false
       });
 
       mockedImportService.importProject.mockResolvedValue(mockImportResult);
@@ -147,7 +149,8 @@ describe('Import Routes', () => {
         '/test/project',
         expect.objectContaining({
           overwriteConflicts: false,
-          preserveDirectoryStructure: true
+          preserveDirectoryStructure: true,
+          includeUserPath: false
         })
       );
     });
@@ -162,7 +165,8 @@ describe('Import Routes', () => {
 
       mockedImportService.validateOptions.mockReturnValue({
         overwriteConflicts: false,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false
       });
 
       mockedImportService.importProject.mockResolvedValue(mockImportResult);
@@ -223,7 +227,8 @@ describe('Import Routes', () => {
 
       mockedImportService.validateOptions.mockReturnValue({
         overwriteConflicts: false,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false
       });
 
       mockedImportService.importProject.mockResolvedValue(mockImportResult);
@@ -242,7 +247,8 @@ describe('Import Routes', () => {
     it('should return default import options', async () => {
       const mockDefaults: ImportOptions = {
         overwriteConflicts: false,
-        preserveDirectoryStructure: true
+        preserveDirectoryStructure: true,
+        includeUserPath: false
       };
 
       mockedImportService.getDefaultOptions.mockReturnValue(mockDefaults);

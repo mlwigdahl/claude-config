@@ -1,5 +1,6 @@
 import { ConsolidatedFileSystem } from '@claude-config/core';
 import * as path from 'path';
+import * as os from 'os';
 import yauzl from 'yauzl';
 import { createError } from '../middleware/errorHandler.js';
 import { getLogger } from '@claude-config/core';
@@ -100,12 +101,27 @@ export class ImportService {
         };
       }
 
+      // Filter files based on options
+      let filesToProcess = preview.filesToImport;
+      
+      // Filter out user files if not requested
+      if (!options.includeUserPath) {
+        filesToProcess = filesToProcess.filter(file => file.source !== 'user');
+      }
+      
+      // Filter by selected files if provided
+      if (options.selectedFiles && options.selectedFiles.length > 0) {
+        filesToProcess = filesToProcess.filter(file => 
+          options.selectedFiles!.includes(file.archivePath)
+        );
+      }
+
       let filesImported = 0;
       let filesSkipped = 0;
       const remainingConflicts: ImportConflict[] = [];
 
       // Process each file
-      for (const fileEntry of preview.filesToImport) {
+      for (const fileEntry of filesToProcess) {
         const hasConflict = preview.conflicts.some(
           (c: ImportConflict) => c.targetPath === fileEntry.targetPath
         );
@@ -215,9 +231,31 @@ export class ImportService {
               ConfigurationServiceAPI.getFileConfigurationType(baseFilename);
 
             if (configCheck?.type) {
-              // Calculate target path
-              const relativePath = entry.fileName.replace(/\\/g, '/'); // Normalize path separators
-              const targetFilePath = path.resolve(targetPath, relativePath);
+              // Normalize path separators
+              const normalizedArchivePath = entry.fileName.replace(/\\/g, '/');
+              
+              // Determine source and relative path
+              let source: 'project' | 'user' = 'project';
+              let relativePath = normalizedArchivePath;
+              
+              if (normalizedArchivePath.startsWith('user/')) {
+                source = 'user';
+                relativePath = normalizedArchivePath.substring(5); // Remove 'user/' prefix
+              } else if (normalizedArchivePath.startsWith('project/')) {
+                source = 'project';
+                relativePath = normalizedArchivePath.substring(8); // Remove 'project/' prefix
+              }
+              
+              // Calculate target path based on source
+              let targetFilePath: string;
+              if (source === 'user') {
+                // User files go to the user's home directory
+                const userClaudePath = path.join(os.homedir(), '.claude');
+                targetFilePath = path.resolve(userClaudePath, relativePath);
+              } else {
+                // Project files go to the specified target path
+                targetFilePath = path.resolve(targetPath, relativePath);
+              }
 
               const fileEntry: ImportFileEntry = {
                 archivePath: entry.fileName,
@@ -226,6 +264,7 @@ export class ImportService {
                 type: configCheck.type as 'memory' | 'settings' | 'command',
                 isInactive,
                 size: content.length,
+                source,
               };
 
               files.push(fileEntry);
@@ -310,6 +349,7 @@ export class ImportService {
             existingModified: stats.lastModified || new Date(0),
             type: fileEntry.type,
             isInactive: fileEntry.isInactive,
+            source: fileEntry.source,
           };
 
           conflicts.push(conflict);
@@ -332,6 +372,7 @@ export class ImportService {
     return {
       overwriteConflicts: false,
       preserveDirectoryStructure: true,
+      includeUserPath: false,
     };
   }
 
@@ -342,6 +383,8 @@ export class ImportService {
     return {
       overwriteConflicts: options.overwriteConflicts ?? false,
       preserveDirectoryStructure: options.preserveDirectoryStructure ?? true,
+      includeUserPath: options.includeUserPath ?? false,
+      selectedFiles: options.selectedFiles,
     };
   }
 }

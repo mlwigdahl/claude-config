@@ -16,6 +16,12 @@ export interface ExportOptions {
 
   // Archive format (for future extensibility)
   format: 'zip';
+
+  // Include user path files from ~/.claude
+  includeUserPath: boolean;
+
+  // Selected files to export (optional - if not provided, all matching files are exported)
+  selectedFiles?: string[]; // Array of file paths
 }
 
 export interface ExportResult {
@@ -31,6 +37,7 @@ export interface ExportFileEntry {
   archivePath: string; // Path within archive
   type: 'memory' | 'settings' | 'command';
   isInactive: boolean;
+  source: 'project' | 'user'; // Whether from project path or user path
 }
 
 export interface ImportFileEntry {
@@ -40,6 +47,7 @@ export interface ImportFileEntry {
   type: 'memory' | 'settings' | 'command';
   isInactive: boolean;
   size: number; // Size in bytes
+  source: 'project' | 'user'; // Whether from project path or user path
 }
 
 export interface ImportConflict {
@@ -50,6 +58,7 @@ export interface ImportConflict {
   existingModified: Date; // Last modified date of existing file
   type: 'memory' | 'settings' | 'command';
   isInactive: boolean;
+  source: 'project' | 'user'; // Whether from project path or user path
 }
 
 export interface ImportPreviewResult {
@@ -63,6 +72,8 @@ export interface ImportPreviewResult {
 export interface ImportOptions {
   overwriteConflicts: boolean;
   preserveDirectoryStructure: boolean;
+  includeUserPath: boolean; // Whether to import user path files
+  selectedFiles?: string[]; // Array of archive paths to import (optional - if not provided, all files are imported)
 }
 
 export interface ImportResult {

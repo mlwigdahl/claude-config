@@ -176,12 +176,40 @@ export const FileSystemProvider: React.FC<FileSystemProviderProps> = ({
   const discoverFiles = useCallback(
     async (directoryPath: string, forceRefresh = false) => {
       try {
-        const result = await FileSystemService.discoverFileTree(directoryPath, {
-          maxDepth: 10,
-          includeHidden: false,
-          autoExpand: true,
-          expandDepth: 2,
+        dispatch({ type: 'SET_LOADING', payload: true });
+        console.log('Starting file discovery for:', directoryPath);
+        
+        // Get home directory info
+        const defaultDirInfo = await FileSystemService.getDefaultDirectory();
+        const homeDirectory = defaultDirInfo.homeDirectory;
+        
+        console.log('Home directory info:', defaultDirInfo);
+        
+        // Prepare roots array with both home and project directories
+        const roots = [
+          { label: 'Home Directory', path: homeDirectory },
+          { label: 'Project Directory', path: directoryPath }
+        ];
+        
+        // Add options to limit home directory depth
+        const options = {
+          maxDepth: directoryPath === homeDirectory ? 3 : undefined,
+          includeHidden: false
+        };
+        
+        console.log('Discovering multi-root file tree with roots:', roots);
+        
+        const result = await FileSystemService.discoverMultiRootFileTree(roots, {
+          ...options,
           forceRefresh, // Pass force refresh to service
+        });
+        
+        console.log('Multi-root discovery result:', {
+          treeCount: result.tree.length,
+          totalFiles: result.totalFiles,
+          totalDirectories: result.totalDirectories,
+          configFiles: result.configurationFiles,
+          tree: result.tree
         });
 
         dispatch({ type: 'SET_FILE_TREE', payload: result.tree });
@@ -218,9 +246,12 @@ export const FileSystemProvider: React.FC<FileSystemProviderProps> = ({
           }
         }
       } catch (error) {
+        console.error('File discovery error:', error);
         const errorMessage =
           error instanceof Error ? error.message : 'Failed to discover files';
         dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     },
     [scrollToNodeCallback]
@@ -242,7 +273,9 @@ export const FileSystemProvider: React.FC<FileSystemProviderProps> = ({
         dispatch({ type: 'SHOW_DIRECTORY_BROWSER', payload: false });
 
         const isSupported = await FileSystemService.isSupported();
+        console.log('Server availability check:', isSupported);
         if (!isSupported) {
+          console.error('Server is not available');
           throw new Error('Server file system is not available');
         }
 
@@ -259,7 +292,6 @@ export const FileSystemProvider: React.FC<FileSystemProviderProps> = ({
             ? error.message
             : 'Failed to select project root';
         dispatch({ type: 'SET_ERROR', payload: errorMessage });
-      } finally {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     },
@@ -331,8 +363,6 @@ export const FileSystemProvider: React.FC<FileSystemProviderProps> = ({
         const errorMessage =
           error instanceof Error ? error.message : 'Failed to refresh files';
         dispatch({ type: 'SET_ERROR', payload: errorMessage });
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
       }
     },
     [state.projectRoot, discoverFiles]

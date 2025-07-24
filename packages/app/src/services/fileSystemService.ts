@@ -486,6 +486,222 @@ export class FileSystemService {
   }
 
   /**
+   * Discover and build file tree from multiple root directories
+   */
+  static async discoverMultiRootFileTree(
+    roots: { label: string; path: string }[],
+    options: TreeBuildOptions = {}
+  ): Promise<FileDiscoveryResult> {
+    const { forceRefresh = false } = options;
+    
+    console.log('discoverMultiRootFileTree: Starting with roots:', roots);
+    
+    try {
+      const allTrees: FileTreeNode[] = [];
+      let totalFiles = 0;
+      let totalDirectories = 0;
+      const configurationFiles = { memory: 0, settings: 0, command: 0 };
+      let projectRootPath = '';
+
+      // Process each root separately
+      for (const root of roots) {
+        console.log(`Processing root "${root.label}" at path: ${root.path}`);
+        
+        try {
+          // Use filtered tree endpoint for each root
+          const params = new URLSearchParams({
+            projectRoot: root.path,
+            rootPath: root.path,
+            _t: Date.now().toString(),
+            _force: Math.random().toString(),
+          });
+
+          if (forceRefresh) {
+            params.set('_refresh', Date.now().toString());
+            params.set('_bust', Math.random().toString());
+          }
+
+          const cacheControl = forceRefresh
+            ? { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+            : {};
+
+          console.log(`Fetching filtered tree for ${root.label} from:`, `${API_BASE_URL}/api/filesystem/filtered-tree?${params}`);
+
+          const response = await fetch(
+            `${API_BASE_URL}/api/filesystem/filtered-tree?${params}`,
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                Pragma: 'no-cache',
+                Expires: '0',
+                ...cacheControl,
+              },
+            }
+          );
+
+          console.log(`Response status for ${root.label}:`, response.status);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Error response for ${root.label}:`, errorText);
+            let error;
+            try {
+              error = JSON.parse(errorText);
+            } catch {
+              error = { message: errorText };
+            }
+            throw new Error(error.message || `Failed to discover file tree for ${root.label}`);
+          }
+
+          let data;
+          try {
+            const text = await response.text();
+            console.log(`Response size for ${root.label}: ${text.length} characters`);
+            data = JSON.parse(text);
+          } catch (parseError) {
+            console.error(`Failed to parse response for ${root.label}:`, parseError);
+            throw new Error(`Invalid JSON response for ${root.label}`);
+          }
+          const serverResult = data.data;
+          
+          console.log(`Server result for ${root.label}:`, serverResult);
+
+          // Validate server result
+          if (!serverResult || !serverResult.tree) {
+            console.error(`Invalid server result for ${root.label}:`, serverResult);
+            throw new Error(`Invalid tree structure returned for ${root.label}`);
+          }
+
+          // Convert the tree and wrap it in a labeled root node
+          const convertedTree = this.convertServerTreeToFileTreeNode(
+            serverResult.tree,
+            0,
+            `${root.label}_root`
+          );
+
+          // Create a wrapper node for this root
+          const rootNode: FileTreeNode = {
+            id: `${root.label}_root`,
+            name: root.label,
+            path: root.path,
+            type: 'directory',
+            isExpanded: true,
+            depth: 0,
+            children: convertedTree ? [convertedTree] : [],
+            hasChildren: convertedTree !== null,
+          };
+
+          allTrees.push(rootNode);
+
+          // Accumulate totals
+          totalFiles += serverResult.totalFiles;
+          totalDirectories += serverResult.totalDirectories;
+          configurationFiles.memory += serverResult.configurationFiles.memory;
+          configurationFiles.settings += serverResult.configurationFiles.settings;
+          configurationFiles.command += serverResult.configurationFiles.command;
+
+          // Set project root path from the Project Directory root
+          if (root.label === 'Project Directory') {
+            projectRootPath = serverResult.projectRootPath;
+          }
+          
+          console.log(`Successfully processed root "${root.label}":`, {
+            path: root.path,
+            files: serverResult.totalFiles,
+            directories: serverResult.totalDirectories,
+            treeDepth: convertedTree.children?.length || 0
+          });
+          
+        } catch (rootError) {
+          console.error(`Failed to process root "${root.label}":`, rootError);
+          console.error('Full error details:', {
+            message: rootError instanceof Error ? rootError.message : String(rootError),
+            stack: rootError instanceof Error ? rootError.stack : undefined,
+            root: root
+          });
+          // Continue with other roots instead of failing completely
+          // Create an empty root node to show the error
+          const errorNode: FileTreeNode = {
+            id: `${root.label}_root`,
+            name: `${root.label} (Error: ${rootError instanceof Error ? rootError.message : 'Unknown error'})`,
+            path: root.path,
+            type: 'directory',
+            isExpanded: false,
+            depth: 0,
+            children: [],
+            hasChildren: false,
+          };
+          allTrees.push(errorNode);
+        }
+      }
+
+      return {
+        tree: allTrees,
+        totalFiles,
+        totalDirectories,
+        configurationFiles,
+        projectRootPath,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to discover multi-root file tree: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Helper method to convert server tree to FileTreeNode
+   */
+  private static convertServerTreeToFileTreeNode(
+    node: FileTreeNodeServer | null | undefined,
+    depth: number = 0,
+    parentId?: string
+  ): FileTreeNode | null {
+    // Handle null/undefined nodes
+    if (!node) {
+      console.error('convertServerTreeToFileTreeNode: Received null/undefined node');
+      return null;
+    }
+    
+    const nodeId = `${parentId || 'root'}_${node.name}_${depth}`;
+
+    if (node.type === 'directory') {
+      const children =
+        node.children?.map(child =>
+          this.convertServerTreeToFileTreeNode(child, depth + 1, nodeId)
+        ) || [];
+
+      return {
+        id: nodeId,
+        name: node.name,
+        path: node.path,
+        type: 'directory',
+        isExpanded: depth < 2, // Auto-expand first 2 levels
+        depth,
+        children,
+        parentId,
+        lastModified: node.lastModified,
+        size: node.size,
+        hasChildren: children.length > 0,
+      };
+    } else {
+      return {
+        id: nodeId,
+        name: node.name,
+        path: node.path,
+        type: 'file',
+        fileType: node.fileType,
+        isInactive: node.isInactive,
+        isValid: node.isValid,
+        depth,
+        parentId,
+        lastModified: node.lastModified,
+        size: node.size,
+      };
+    }
+  }
+
+  /**
    * Discover and build file tree from directory path
    */
   static async discoverFileTree(

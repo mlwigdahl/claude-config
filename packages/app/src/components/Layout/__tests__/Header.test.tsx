@@ -68,7 +68,7 @@ const renderHeader = () => {
 describe('Header', () => {
   it('renders the main title', () => {
     renderHeader();
-    expect(screen.getByRole('heading', { name: /claude code configuration manager/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /claude code configuration console/i })).toBeInTheDocument();
   });
 
   it('displays the subtitle', () => {
@@ -78,7 +78,7 @@ describe('Header', () => {
 
   it('applies correct heading level', () => {
     renderHeader();
-    const heading = screen.getByRole('heading', { name: /claude code configuration manager/i });
+    const heading = screen.getByRole('heading', { name: /claude code configuration console/i });
     expect(heading.tagName).toBe('H1');
   });
 });

@@ -1,5 +1,6 @@
 import { ConsolidatedFileSystem } from '@claude-config/core';
 import * as path from 'path';
+import * as os from 'os';
 import archiver from 'archiver';
 import { minimatch } from 'minimatch';
 import { createError } from '../middleware/errorHandler.js';
@@ -26,6 +27,15 @@ export class ExportService {
     }
 
     const gitignorePath = path.join(dirPath, '.gitignore');
+    
+    // Check if file exists before trying to read it
+    const exists = await ConsolidatedFileSystem.fileExists(gitignorePath);
+    if (!exists) {
+      // No .gitignore file - cache empty patterns and return
+      this.gitignoreCache.set(dirPath, []);
+      return [];
+    }
+    
     try {
       const content = await ConsolidatedFileSystem.readFile(gitignorePath);
       const patterns = content
@@ -36,7 +46,7 @@ export class ExportService {
       this.gitignoreCache.set(dirPath, patterns);
       return patterns;
     } catch (_error) {
-      // No .gitignore file or can't read it
+      // Error reading the file - treat as empty
       this.gitignoreCache.set(dirPath, []);
       return [];
     }
@@ -128,14 +138,34 @@ export class ExportService {
         `Using ${allPatterns.length} ignore patterns (${gitignorePatterns.length} from .gitignore, ${defaultExclusions.length} defaults)`
       );
 
-      // Collect files to export
-      const filesToExport = await this.collectFilesToExport(
+      // Collect files to export from project
+      const projectFiles = await this.collectFilesToExport(
         normalizedProjectPath,
         options,
         allPatterns
       );
 
-      if (filesToExport.length === 0) {
+      // Mark project files with source
+      projectFiles.forEach(file => file.source = 'project');
+
+      let allFiles = [...projectFiles];
+
+      // If user path is requested, collect those files too
+      if (options.includeUserPath) {
+        const userFiles = await this.collectUserPathFiles(options);
+        // Mark user files with source
+        userFiles.forEach(file => file.source = 'user');
+        allFiles = [...allFiles, ...userFiles];
+      }
+
+      // Filter by selected files if provided
+      if (options.selectedFiles && options.selectedFiles.length > 0) {
+        allFiles = allFiles.filter(file => 
+          options.selectedFiles!.includes(file.sourcePath)
+        );
+      }
+
+      if (allFiles.length === 0) {
         logger.warn('No files found to export', { projectPath, options });
         return {
           success: false,
@@ -145,7 +175,7 @@ export class ExportService {
       }
 
       // Create archive
-      const archiveData = await this.createArchive(filesToExport, options);
+      const archiveData = await this.createArchive(allFiles, options);
 
       // Generate filename
       const projectName = path.basename(normalizedProjectPath);
@@ -157,7 +187,7 @@ export class ExportService {
 
       logger.info(`Export completed successfully`, {
         projectPath: normalizedProjectPath,
-        fileCount: filesToExport.length,
+        fileCount: allFiles.length,
         filename,
       });
 
@@ -165,7 +195,7 @@ export class ExportService {
         success: true,
         filename,
         data: archiveData,
-        fileCount: filesToExport.length,
+        fileCount: allFiles.length,
       };
     } catch (error) {
       logger.error('Export failed', {
@@ -348,7 +378,38 @@ export class ExportService {
       archivePath: relativePath.replace(/\\/g, '/'), // Use forward slashes in archive
       type: fileType,
       isInactive,
+      source: 'project', // Default to project, will be overridden as needed
     };
+  }
+
+  /**
+   * Collect files from user's .claude directory
+   */
+  private static async collectUserPathFiles(
+    options: ExportOptions
+  ): Promise<ExportFileEntry[]> {
+    const files: ExportFileEntry[] = [];
+    const userClaudePath = path.join(os.homedir(), '.claude');
+    
+    // Check if user .claude directory exists
+    if (!(await ConsolidatedFileSystem.directoryExists(userClaudePath))) {
+      logger.info('User .claude directory does not exist');
+      return files;
+    }
+
+    const visitedDirs = new Set<string>();
+    
+    // For user path, we don't use gitignore patterns
+    await this.collectFromDirectory(
+      userClaudePath,
+      userClaudePath,
+      files,
+      options,
+      visitedDirs,
+      [] // No gitignore patterns for user path
+    );
+
+    return files;
   }
 
   /**
@@ -388,7 +449,13 @@ export class ExportService {
             const content = await ConsolidatedFileSystem.readFile(
               file.sourcePath
             );
-            archive.append(content, { name: file.archivePath });
+            
+            // Prefix the archive path based on source
+            const prefixedPath = file.source === 'user' 
+              ? `user/${file.archivePath}`
+              : `project/${file.archivePath}`;
+              
+            archive.append(content, { name: prefixedPath });
           } catch (error) {
             logger.warn(`Failed to add file to archive: ${file.sourcePath}`, {
               error,
@@ -421,6 +488,7 @@ export class ExportService {
       includeInactive: false,
       recursive: true,
       format: 'zip',
+      includeUserPath: false,
     };
   }
 
@@ -435,6 +503,8 @@ export class ExportService {
       includeInactive: options.includeInactive ?? false,
       recursive: options.recursive ?? true,
       format: options.format || 'zip',
+      includeUserPath: options.includeUserPath ?? false,
+      selectedFiles: options.selectedFiles,
     };
   }
 }

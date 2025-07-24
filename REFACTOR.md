@@ -66,14 +66,14 @@ abstract class BaseFileOperation<T> {
   protected abstract validateInput(params: T): ValidationResult;
   protected abstract getTargetPath(params: T): string;
   protected abstract generateContent(params: T): string;
-  
+
   async execute(params: T, options: OperationOptions): Promise<OperationResult> {
     // Unified CRUD logic with hooks for specific behavior
   }
 }
 ```
 
-**Benefits**: 
+**Benefits**:
 - Reduces ~400 lines of duplicate code
 - Ensures consistent operation behavior
 - Simplifies testing and maintenance
@@ -219,7 +219,7 @@ export const VALIDATION_LIMITS = {
 - ✅ Error message standardization
 - ✅ Adding interface types
 
-### **Medium Risk Refactors**  
+### **Medium Risk Refactors**
 - ⚠️ Base class extraction (requires careful inheritance design)
 - ⚠️ Platform abstraction (needs thorough cross-platform testing)
 
