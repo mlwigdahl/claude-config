@@ -20,7 +20,7 @@ export interface UnifiedValidationResult {
   valid: boolean;
   errors: string[];
   warnings?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -30,7 +30,7 @@ export interface ConfigurationFileTemplate {
   content: string;
   path: string;
   type: ConfigurationFileType;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -73,7 +73,7 @@ export interface ConfigurationCore {
 export interface MemoryParseResult {
   content: string;
   imports: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   errors?: string[];
 }
 
@@ -83,7 +83,7 @@ export interface MemoryParseResult {
 export interface SettingsParseResult {
   settings: SettingsConfig;
   hooks: HookDefinition[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   errors?: string[];
 }
 
@@ -91,10 +91,10 @@ export interface SettingsParseResult {
  * Command file parsing result
  */
 export interface CommandParseResult {
-  frontmatter?: Record<string, any>;
+  frontmatter?: Record<string, unknown>;
   content: string;
   specialSyntax?: SpecialSyntaxValidationResult;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   errors?: string[];
 }
 
@@ -107,7 +107,7 @@ export interface ConfigurationOperationResult {
   message: string;
   filePath?: string;
   fileType?: ConfigurationFileType;
-  data?: any;
+  data?: unknown;
   errors?: string[];
   warnings?: string[];
 }

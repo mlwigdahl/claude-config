@@ -115,7 +115,7 @@ Add any important notes or reminders here.
 
     // Generate clean JSON without BOM or extra whitespace
     const jsonContent = JSON.stringify(settings, null, 2);
-    
+
     return {
       content: jsonContent,
       path: '.claude/settings.json',

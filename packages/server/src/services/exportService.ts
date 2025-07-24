@@ -27,7 +27,7 @@ export class ExportService {
     }
 
     const gitignorePath = path.join(dirPath, '.gitignore');
-    
+
     // Check if file exists before trying to read it
     const exists = await ConsolidatedFileSystem.fileExists(gitignorePath);
     if (!exists) {
@@ -35,7 +35,7 @@ export class ExportService {
       this.gitignoreCache.set(dirPath, []);
       return [];
     }
-    
+
     try {
       const content = await ConsolidatedFileSystem.readFile(gitignorePath);
       const patterns = content
@@ -111,7 +111,9 @@ export class ExportService {
     try {
       // Normalize project path for cross-platform compatibility
       const normalizedProjectPath = projectPath.replace(/\\/g, '/');
-      logger.info(`Starting export of project: ${normalizedProjectPath}`, { options });
+      logger.info(`Starting export of project: ${normalizedProjectPath}`, {
+        options,
+      });
 
       // Validate project path exists
       if (!(await ConsolidatedFileSystem.directoryExists(projectPath))) {
@@ -146,7 +148,7 @@ export class ExportService {
       );
 
       // Mark project files with source
-      projectFiles.forEach(file => file.source = 'project');
+      projectFiles.forEach(file => (file.source = 'project'));
 
       let allFiles = [...projectFiles];
 
@@ -154,13 +156,13 @@ export class ExportService {
       if (options.includeUserPath) {
         const userFiles = await this.collectUserPathFiles(options);
         // Mark user files with source
-        userFiles.forEach(file => file.source = 'user');
+        userFiles.forEach(file => (file.source = 'user'));
         allFiles = [...allFiles, ...userFiles];
       }
 
       // Filter by selected files if provided
       if (options.selectedFiles && options.selectedFiles.length > 0) {
-        allFiles = allFiles.filter(file => 
+        allFiles = allFiles.filter(file =>
           options.selectedFiles!.includes(file.sourcePath)
         );
       }
@@ -247,7 +249,7 @@ export class ExportService {
   ): Promise<void> {
     // Normalize current directory path for cross-platform compatibility
     const normalizedCurrentDir = currentDir.replace(/\\/g, '/');
-    
+
     // Prevent infinite loops with symlinks - use the normalized directory as realpath
     const realPath = normalizedCurrentDir;
     if (visitedDirs.has(realPath)) {
@@ -260,7 +262,9 @@ export class ExportService {
 
       for (const entry of entries) {
         // Normalize path for cross-platform compatibility
-        const fullPath = path.join(normalizedCurrentDir, entry).replace(/\\/g, '/');
+        const fullPath = path
+          .join(normalizedCurrentDir, entry)
+          .replace(/\\/g, '/');
 
         // Skip ignored files and directories
         const ignored = this.isIgnored(
@@ -390,7 +394,7 @@ export class ExportService {
   ): Promise<ExportFileEntry[]> {
     const files: ExportFileEntry[] = [];
     const userClaudePath = path.join(os.homedir(), '.claude');
-    
+
     // Check if user .claude directory exists
     if (!(await ConsolidatedFileSystem.directoryExists(userClaudePath))) {
       logger.info('User .claude directory does not exist');
@@ -398,7 +402,7 @@ export class ExportService {
     }
 
     const visitedDirs = new Set<string>();
-    
+
     // For user path, we don't use gitignore patterns
     await this.collectFromDirectory(
       userClaudePath,
@@ -449,12 +453,13 @@ export class ExportService {
             const content = await ConsolidatedFileSystem.readFile(
               file.sourcePath
             );
-            
+
             // Prefix the archive path based on source
-            const prefixedPath = file.source === 'user' 
-              ? `user/${file.archivePath}`
-              : `project/${file.archivePath}`;
-              
+            const prefixedPath =
+              file.source === 'user'
+                ? `user/${file.archivePath}`
+                : `project/${file.archivePath}`;
+
             archive.append(content, { name: prefixedPath });
           } catch (error) {
             logger.warn(`Failed to add file to archive: ${file.sourcePath}`, {

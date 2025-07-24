@@ -450,10 +450,13 @@ export class FileSystemService {
 
       const newPath = path.join(directory, newFileName);
       // Normalize path separators to match input path format
-      const normalizedNewPath = filePath.includes('/') ? newPath.replace(/\\/g, '/') : newPath;
+      const normalizedNewPath = filePath.includes('/')
+        ? newPath.replace(/\\/g, '/')
+        : newPath;
 
       // Check if target file already exists
-      const targetStats = await ConsolidatedFileSystem.getFileStats(normalizedNewPath);
+      const targetStats =
+        await ConsolidatedFileSystem.getFileStats(normalizedNewPath);
       if (targetStats.exists) {
         const targetType = newType === 'project' ? 'project' : 'local';
         throw createError(
@@ -721,7 +724,11 @@ export class FileSystemService {
 
     // Check for invalid manual renames - files ending with .inactive that aren't proper config files
     if (isInactive) {
-      const baseCheck = this.isConfigurationFile(actualFileName, filePath, isHomeContext);
+      const baseCheck = this.isConfigurationFile(
+        actualFileName,
+        filePath,
+        isHomeContext
+      );
       if (!baseCheck.valid) {
         return { type: null, valid: false };
       }
@@ -739,8 +746,10 @@ export class FileSystemService {
     // In home context, memory files must be in .claude directory
     if (isHomeContext && extension === 'md' && filePath) {
       const normalizedPath = filePath.replace(/\\/g, '/');
-      const isInClaudeDir = normalizedPath.includes('/.claude/') || normalizedPath.includes('\\.claude\\');
-      
+      const isInClaudeDir =
+        normalizedPath.includes('/.claude/') ||
+        normalizedPath.includes('\\.claude\\');
+
       if (!isInClaudeDir) {
         // In home context, .md files outside .claude are not configuration files
         return { type: null, valid: false };
@@ -966,8 +975,10 @@ export class FileSystemService {
     rootPath: string
   ): Promise<FilteredFileTreeResult> {
     try {
-      logger.info(`Building filtered file tree - Project: ${projectRoot}, Root: ${rootPath}`);
-      
+      logger.info(
+        `Building filtered file tree - Project: ${projectRoot}, Root: ${rootPath}`
+      );
+
       const stats = {
         totalFiles: 0,
         totalDirectories: 0,
@@ -977,9 +988,11 @@ export class FileSystemService {
       // Check if we're scanning the home directory
       const homeDir = os.homedir();
       const isHomeDirectory = path.resolve(rootPath) === path.resolve(homeDir);
-      
+
       if (isHomeDirectory) {
-        logger.info('Detected home directory scan - will only scan .claude subdirectory');
+        logger.info(
+          'Detected home directory scan - will only scan .claude subdirectory'
+        );
       }
 
       // Read gitignore patterns from project root
@@ -989,7 +1002,11 @@ export class FileSystemService {
       let tree;
       if (isHomeDirectory) {
         // Special handling for home directory - only scan .claude
-        tree = await this.buildHomeDirectoryTree(homeDir, stats, gitignorePatterns);
+        tree = await this.buildHomeDirectoryTree(
+          homeDir,
+          stats,
+          gitignorePatterns
+        );
       } else {
         // Normal project tree building
         tree = await this.buildTreeWithParents(
@@ -1001,11 +1018,13 @@ export class FileSystemService {
       }
 
       logger.info(`Tree built for ${rootPath}, checking structure...`);
-      
+
       // Ensure we always have a valid tree structure
       if (!tree || (!tree.children && tree.type === 'directory')) {
         // Create a minimal tree structure if empty
-        logger.warn(`Empty tree for ${projectRoot}, creating minimal structure`);
+        logger.warn(
+          `Empty tree for ${projectRoot}, creating minimal structure`
+        );
         const minimalTree: FileTreeNode = {
           name: path.basename(projectRoot),
           path: projectRoot,
@@ -1014,15 +1033,17 @@ export class FileSystemService {
           size: 0,
           lastModified: new Date(),
         };
-        
+
         // Debug logging
         logger.info('=== Tree Building Debug ===');
         logger.info('Project root', { projectRoot });
         logger.info('Root path', { rootPath });
         logger.info('Stats', { stats });
-        logger.info('Tree structure', { tree: JSON.stringify(minimalTree, null, 2) });
+        logger.info('Tree structure', {
+          tree: JSON.stringify(minimalTree, null, 2),
+        });
         logger.info('=== End Debug ===');
-        
+
         return {
           tree: minimalTree,
           totalFiles: 0,
@@ -1079,31 +1100,33 @@ export class FileSystemService {
         size: 0,
         lastModified: new Date(),
       };
-      
+
       stats.totalDirectories++;
-      
+
       // Check if .claude directory exists
       const claudePath = path.join(homeDir, '.claude');
-      const claudeExists = await ConsolidatedFileSystem.directoryExists(claudePath);
-      
+      const claudeExists =
+        await ConsolidatedFileSystem.directoryExists(claudePath);
+
       if (claudeExists) {
-        const claudeStats = await ConsolidatedFileSystem.getFileStats(claudePath);
+        const claudeStats =
+          await ConsolidatedFileSystem.getFileStats(claudePath);
         if (claudeStats.isDirectory) {
           // Build the .claude directory tree
           const claudeNode = await this.buildFilteredTreeNode(
             claudePath,
             stats,
-            homeDir,  // Use homeDir as projectRoot for consistency
+            homeDir, // Use homeDir as projectRoot for consistency
             gitignorePatterns,
-            true  // isHomeContext - memory files only in .claude
+            true // isHomeContext - memory files only in .claude
           );
-          
+
           if (claudeNode) {
             homeNode.children = [claudeNode];
           }
         }
       }
-      
+
       return homeNode;
     } catch (error: any) {
       logger.error(`Failed to build home directory tree: ${error.message}`);
@@ -1299,7 +1322,7 @@ export class FileSystemService {
             const configCheck = FileSystemService.isConfigurationFile(
               entry,
               childPath,
-              false  // Not home context for ancestor directories
+              false // Not home context for ancestor directories
             );
             if (configCheck.valid) {
               const fileNode = await this.buildFilteredTreeNode(
@@ -1307,7 +1330,7 @@ export class FileSystemService {
                 stats,
                 projectRoot,
                 gitignorePatterns,
-                false  // Not home context for ancestor directories
+                false // Not home context for ancestor directories
               );
               dirNode.children!.push(fileNode);
             }
@@ -1679,7 +1702,7 @@ export class FileSystemService {
   async getDefaultDirectory(): Promise<DefaultDirectoryResult> {
     const platform = process.platform;
     const homeDir = os.homedir();
-    
+
     try {
       let defaultDirectory = homeDir;
       let drives: string[] = [];
@@ -1687,11 +1710,12 @@ export class FileSystemService {
       if (platform === 'win32') {
         // On Windows, get available drives
         drives = await this.getWindowsDrives();
-        
+
         // Default to user's home directory or Documents if it exists
         const documentsPath = path.join(homeDir, 'Documents');
         try {
-          const documentsStats = await ConsolidatedFileSystem.getFileStats(documentsPath);
+          const documentsStats =
+            await ConsolidatedFileSystem.getFileStats(documentsPath);
           if (documentsStats.exists && documentsStats.isDirectory) {
             defaultDirectory = documentsPath;
           }
@@ -1704,7 +1728,7 @@ export class FileSystemService {
         const commonPaths = [
           path.join(homeDir, 'Documents'),
           path.join(homeDir, 'Desktop'),
-          homeDir
+          homeDir,
         ];
 
         for (const testPath of commonPaths) {
@@ -1721,17 +1745,26 @@ export class FileSystemService {
         }
       }
 
-      logger.debug(`Default directory for platform ${platform}: ${defaultDirectory}`);
-      
+      logger.debug(
+        `Default directory for platform ${platform}: ${defaultDirectory}`
+      );
+
       return {
-        defaultDirectory: platform === 'win32' ? defaultDirectory : defaultDirectory.replace(/\\/g, '/'),
-        homeDirectory: platform === 'win32' ? homeDir : homeDir.replace(/\\/g, '/'),
+        defaultDirectory:
+          platform === 'win32'
+            ? defaultDirectory
+            : defaultDirectory.replace(/\\/g, '/'),
+        homeDirectory:
+          platform === 'win32' ? homeDir : homeDir.replace(/\\/g, '/'),
         platform,
         drives: drives.length > 0 ? drives : undefined,
       };
     } catch (error: any) {
       logger.error(`Failed to get default directory: ${error.message}`);
-      throw createError(`Failed to get default directory: ${error.message}`, 500);
+      throw createError(
+        `Failed to get default directory: ${error.message}`,
+        500
+      );
     }
   }
 
@@ -1745,7 +1778,32 @@ export class FileSystemService {
 
     try {
       // Common Windows drive letters
-      const possibleDrives = ['C:', 'D:', 'E:', 'F:', 'G:', 'H:', 'I:', 'J:', 'K:', 'L:', 'M:', 'N:', 'O:', 'P:', 'Q:', 'R:', 'S:', 'T:', 'U:', 'V:', 'W:', 'X:', 'Y:', 'Z:'];
+      const possibleDrives = [
+        'C:',
+        'D:',
+        'E:',
+        'F:',
+        'G:',
+        'H:',
+        'I:',
+        'J:',
+        'K:',
+        'L:',
+        'M:',
+        'N:',
+        'O:',
+        'P:',
+        'Q:',
+        'R:',
+        'S:',
+        'T:',
+        'U:',
+        'V:',
+        'W:',
+        'X:',
+        'Y:',
+        'Z:',
+      ];
       const availableDrives: string[] = [];
 
       for (const drive of possibleDrives) {

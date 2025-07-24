@@ -63,7 +63,9 @@ export class FileSystemService {
    */
   static async getDefaultDirectory(): Promise<DefaultDirectoryInfo> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/filesystem/default-directory`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/filesystem/default-directory`
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -73,7 +75,9 @@ export class FileSystemService {
       const data = await response.json();
       return data.data;
     } catch (error) {
-      throw new Error(`Failed to get default directory: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to get default directory: ${(error as Error).message}`
+      );
     }
   }
 
@@ -493,9 +497,9 @@ export class FileSystemService {
     options: TreeBuildOptions = {}
   ): Promise<FileDiscoveryResult> {
     const { forceRefresh = false } = options;
-    
+
     console.log('discoverMultiRootFileTree: Starting with roots:', roots);
-    
+
     try {
       const allTrees: FileTreeNode[] = [];
       let totalFiles = 0;
@@ -506,7 +510,7 @@ export class FileSystemService {
       // Process each root separately
       for (const root of roots) {
         console.log(`Processing root "${root.label}" at path: ${root.path}`);
-        
+
         try {
           // Use filtered tree endpoint for each root
           const params = new URLSearchParams({
@@ -525,7 +529,10 @@ export class FileSystemService {
             ? { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
             : {};
 
-          console.log(`Fetching filtered tree for ${root.label} from:`, `${API_BASE_URL}/api/filesystem/filtered-tree?${params}`);
+          console.log(
+            `Fetching filtered tree for ${root.label} from:`,
+            `${API_BASE_URL}/api/filesystem/filtered-tree?${params}`
+          );
 
           const response = await fetch(
             `${API_BASE_URL}/api/filesystem/filtered-tree?${params}`,
@@ -550,26 +557,38 @@ export class FileSystemService {
             } catch {
               error = { message: errorText };
             }
-            throw new Error(error.message || `Failed to discover file tree for ${root.label}`);
+            throw new Error(
+              error.message || `Failed to discover file tree for ${root.label}`
+            );
           }
 
           let data;
           try {
             const text = await response.text();
-            console.log(`Response size for ${root.label}: ${text.length} characters`);
+            console.log(
+              `Response size for ${root.label}: ${text.length} characters`
+            );
             data = JSON.parse(text);
           } catch (parseError) {
-            console.error(`Failed to parse response for ${root.label}:`, parseError);
+            console.error(
+              `Failed to parse response for ${root.label}:`,
+              parseError
+            );
             throw new Error(`Invalid JSON response for ${root.label}`);
           }
           const serverResult = data.data;
-          
+
           console.log(`Server result for ${root.label}:`, serverResult);
 
           // Validate server result
           if (!serverResult || !serverResult.tree) {
-            console.error(`Invalid server result for ${root.label}:`, serverResult);
-            throw new Error(`Invalid tree structure returned for ${root.label}`);
+            console.error(
+              `Invalid server result for ${root.label}:`,
+              serverResult
+            );
+            throw new Error(
+              `Invalid tree structure returned for ${root.label}`
+            );
           }
 
           // Convert the tree and wrap it in a labeled root node
@@ -597,27 +616,30 @@ export class FileSystemService {
           totalFiles += serverResult.totalFiles;
           totalDirectories += serverResult.totalDirectories;
           configurationFiles.memory += serverResult.configurationFiles.memory;
-          configurationFiles.settings += serverResult.configurationFiles.settings;
+          configurationFiles.settings +=
+            serverResult.configurationFiles.settings;
           configurationFiles.command += serverResult.configurationFiles.command;
 
           // Set project root path from the Project Directory root
           if (root.label === 'Project Directory') {
             projectRootPath = serverResult.projectRootPath;
           }
-          
+
           console.log(`Successfully processed root "${root.label}":`, {
             path: root.path,
             files: serverResult.totalFiles,
             directories: serverResult.totalDirectories,
-            treeDepth: convertedTree.children?.length || 0
+            treeDepth: convertedTree.children?.length || 0,
           });
-          
         } catch (rootError) {
           console.error(`Failed to process root "${root.label}":`, rootError);
           console.error('Full error details:', {
-            message: rootError instanceof Error ? rootError.message : String(rootError),
+            message:
+              rootError instanceof Error
+                ? rootError.message
+                : String(rootError),
             stack: rootError instanceof Error ? rootError.stack : undefined,
-            root: root
+            root: root,
           });
           // Continue with other roots instead of failing completely
           // Create an empty root node to show the error
@@ -659,10 +681,12 @@ export class FileSystemService {
   ): FileTreeNode | null {
     // Handle null/undefined nodes
     if (!node) {
-      console.error('convertServerTreeToFileTreeNode: Received null/undefined node');
+      console.error(
+        'convertServerTreeToFileTreeNode: Received null/undefined node'
+      );
       return null;
     }
-    
+
     const nodeId = `${parentId || 'root'}_${node.name}_${depth}`;
 
     if (node.type === 'directory') {

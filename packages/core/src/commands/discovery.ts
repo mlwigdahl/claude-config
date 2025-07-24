@@ -44,8 +44,8 @@ export async function discoverSlashCommands(
   // Define precedence (higher number = higher precedence)
   const precedenceMap: Record<SlashCommandType, number> = {
     [SlashCommandType.PROJECT]: 3, // Project commands have highest precedence
-    [SlashCommandType.PARENT]: 2,  // Parent commands override user commands
-    [SlashCommandType.USER]: 1,    // User commands have lowest precedence
+    [SlashCommandType.PARENT]: 2, // Parent commands override user commands
+    [SlashCommandType.USER]: 1, // User commands have lowest precedence
   };
 
   // Discover commands in standard directories (user and project)
@@ -73,7 +73,7 @@ export async function discoverSlashCommands(
   // Discover commands in parent directories
   const parentCommands = await discoverParentCommands(projectRoot);
   discoveredCommands.push(...parentCommands);
-  
+
   // Collect namespaces from parent commands
   parentCommands.forEach(cmd => {
     if (cmd.namespace) {
@@ -253,11 +253,11 @@ async function discoverParentCommands(
     levelCount < maxLevels
   ) {
     const commandsPath = path.join(currentPath, '.claude', 'commands');
-    
+
     try {
       await fs.access(commandsPath);
       logger.debug(`Found parent commands directory: ${commandsPath}`);
-      
+
       const parentCommands = await discoverCommandsInDirectory(
         commandsPath,
         SlashCommandType.PARENT
@@ -274,7 +274,9 @@ async function discoverParentCommands(
   }
 
   if (levelCount >= maxLevels) {
-    logger.debug(`Stopped parent command search at maximum level: ${maxLevels}`);
+    logger.debug(
+      `Stopped parent command search at maximum level: ${maxLevels}`
+    );
   }
 
   logger.debug(`Discovered ${commands.length} parent commands`);
@@ -284,22 +286,27 @@ async function discoverParentCommands(
 /**
  * Finds the parent commands directory from a command file path
  */
-function findParentCommandsDirectoryFromCommand(commandPath: string): string | null {
+function findParentCommandsDirectoryFromCommand(
+  commandPath: string
+): string | null {
   const normalizedPath = path.resolve(commandPath);
   const pathParts = normalizedPath.split(path.sep);
-  
+
   // Find the index of '.claude' in the path
   const claudeIndex = pathParts.findIndex(part => part === '.claude');
   if (claudeIndex === -1) {
     return null;
   }
-  
+
   // The commands directory should be right after .claude
   const commandsIndex = claudeIndex + 1;
-  if (commandsIndex >= pathParts.length || pathParts[commandsIndex] !== 'commands') {
+  if (
+    commandsIndex >= pathParts.length ||
+    pathParts[commandsIndex] !== 'commands'
+  ) {
     return null;
   }
-  
+
   // Return the path up to and including 'commands'
   return pathParts.slice(0, commandsIndex + 1).join(path.sep);
 }
@@ -365,7 +372,7 @@ export async function discoverNamespaces(
   // Also discover namespaces in parent commands
   const parentCommands = await discoverParentCommands(projectRoot);
   const parentNamespaceDirs = new Set<string>();
-  
+
   // Collect unique parent command directories
   parentCommands.forEach(cmd => {
     if (cmd.namespace) {

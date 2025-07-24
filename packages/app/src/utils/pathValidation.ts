@@ -82,8 +82,9 @@ export function getPreferredDirectoryPath(
   homeDirectory?: string
 ): string {
   // Check if we're in the home directory context based on node ID
-  const isHomeContext = selectedNodeId?.includes('Home Directory_root') || false;
-  
+  const isHomeContext =
+    selectedNodeId?.includes('Home Directory_root') || false;
+
   // If no selection, use appropriate default
   if (!selectedNodePath) {
     if (isHomeContext && homeDirectory) {
@@ -102,23 +103,29 @@ export function getPreferredDirectoryPath(
   // For home directory context, ensure we use home paths
   if (isHomeContext && homeDirectory) {
     const baseDir = directoryPath || homeDirectory;
-    
+
     switch (fileType) {
       case 'memory':
         // In home context, memory files should go in .claude
-        return baseDir.includes('.claude') ? baseDir : `${homeDirectory}/.claude`;
-        
+        return baseDir.includes('.claude')
+          ? baseDir
+          : `${homeDirectory}/.claude`;
+
       case 'settings':
         // Settings files should go in .claude
-        return baseDir.includes('.claude') ? baseDir : `${homeDirectory}/.claude`;
-        
+        return baseDir.includes('.claude')
+          ? baseDir
+          : `${homeDirectory}/.claude`;
+
       case 'command':
         // Commands should go in .claude/commands
         if (baseDir.includes('.claude/commands')) {
           return baseDir;
         }
-        return baseDir.includes('.claude') ? `${baseDir}/commands` : `${homeDirectory}/.claude/commands`;
-        
+        return baseDir.includes('.claude')
+          ? `${baseDir}/commands`
+          : `${homeDirectory}/.claude/commands`;
+
       default:
         return baseDir;
     }

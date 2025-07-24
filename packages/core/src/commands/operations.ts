@@ -45,9 +45,9 @@ export async function createSlashCommand(
   try {
     // Build the target path
     const targetPath = buildCommandPath(
-      projectRoot, 
-      commandName, 
-      namespace, 
+      projectRoot,
+      commandName,
+      namespace,
       SlashCommandType.PROJECT,
       customBaseDir
     );
@@ -184,9 +184,9 @@ export async function updateSlashCommand(
   try {
     // Build the target path
     const targetPath = buildCommandPath(
-      projectRoot, 
-      commandName, 
-      namespace, 
+      projectRoot,
+      commandName,
+      namespace,
       SlashCommandType.PROJECT,
       customBaseDir
     );
@@ -489,9 +489,9 @@ export async function deleteSlashCommand(
   try {
     // Build the target path
     const targetPath = buildCommandPath(
-      projectRoot, 
-      commandName, 
-      namespace, 
+      projectRoot,
+      commandName,
+      namespace,
       SlashCommandType.PROJECT,
       customBaseDir
     );
@@ -520,8 +520,13 @@ export async function deleteSlashCommand(
     let commandContent: SlashCommandContent | undefined;
     try {
       commandContent = await readMarkdownFile(targetPath);
-    } catch (error: any) {
-      if (error.code === ErrorCode.FILE_NOT_FOUND) {
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === ErrorCode.FILE_NOT_FOUND
+      ) {
         return {
           success: false,
           message: `Command file not found: ${targetPath}`,
@@ -580,13 +585,18 @@ export async function deleteSlashCommand(
       commandPath: targetPath,
       warnings: warnings.length > 0 ? warnings : undefined,
     };
-  } catch (error: any) {
-    logger.error(`Failed to delete slash command: ${error.message}`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCode =
+      error && typeof error === 'object' && 'code' in error
+        ? (error as { code: string }).code
+        : ErrorCode.OPERATION_FAILED;
+    logger.error(`Failed to delete slash command: ${errorMessage}`);
     return {
       success: false,
-      message: `Failed to delete command: ${error.message}`,
+      message: `Failed to delete command: ${errorMessage}`,
       error: new ApplicationError({
-        code: error.code || ErrorCode.OPERATION_FAILED,
+        code: errorCode,
         message: error.message,
         context: error.details,
       }),
@@ -638,8 +648,9 @@ async function cleanupEmptyNamespaceDirectory(dirPath: string): Promise<void> {
         await cleanupEmptyNamespaceDirectory(parentDir);
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Ignore errors during cleanup
-    logger.debug(`Failed to cleanup directory ${dirPath}: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.debug(`Failed to cleanup directory ${dirPath}: ${errorMessage}`);
   }
 }

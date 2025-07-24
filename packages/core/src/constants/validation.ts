@@ -1,6 +1,6 @@
 /**
  * Centralized validation constants for Claude Config
- * 
+ *
  * This file consolidates all magic numbers and validation limits
  * that were previously scattered throughout the codebase.
  */

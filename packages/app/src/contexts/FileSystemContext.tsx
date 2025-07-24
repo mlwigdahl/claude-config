@@ -178,38 +178,41 @@ export const FileSystemProvider: React.FC<FileSystemProviderProps> = ({
       try {
         dispatch({ type: 'SET_LOADING', payload: true });
         console.log('Starting file discovery for:', directoryPath);
-        
+
         // Get home directory info
         const defaultDirInfo = await FileSystemService.getDefaultDirectory();
         const homeDirectory = defaultDirInfo.homeDirectory;
-        
+
         console.log('Home directory info:', defaultDirInfo);
-        
+
         // Prepare roots array with both home and project directories
         const roots = [
           { label: 'Home Directory', path: homeDirectory },
-          { label: 'Project Directory', path: directoryPath }
+          { label: 'Project Directory', path: directoryPath },
         ];
-        
+
         // Add options to limit home directory depth
         const options = {
           maxDepth: directoryPath === homeDirectory ? 3 : undefined,
-          includeHidden: false
+          includeHidden: false,
         };
-        
+
         console.log('Discovering multi-root file tree with roots:', roots);
-        
-        const result = await FileSystemService.discoverMultiRootFileTree(roots, {
-          ...options,
-          forceRefresh, // Pass force refresh to service
-        });
-        
+
+        const result = await FileSystemService.discoverMultiRootFileTree(
+          roots,
+          {
+            ...options,
+            forceRefresh, // Pass force refresh to service
+          }
+        );
+
         console.log('Multi-root discovery result:', {
           treeCount: result.tree.length,
           totalFiles: result.totalFiles,
           totalDirectories: result.totalDirectories,
           configFiles: result.configurationFiles,
-          tree: result.tree
+          tree: result.tree,
         });
 
         dispatch({ type: 'SET_FILE_TREE', payload: result.tree });

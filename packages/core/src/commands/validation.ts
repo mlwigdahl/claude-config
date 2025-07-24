@@ -97,20 +97,35 @@ export async function validateCommandPath(
   const isUserCommand = normalizedTarget.startsWith(userCommandsDir);
   const isProjectCommand = normalizedTarget.startsWith(projectCommandsDir);
   const isParentCommand = isParentCommandPath(normalizedTarget, normalizedRoot);
-  
+
   // Check if using custom directory
   let isCustomCommand = false;
   if (customBaseDir) {
-    const customCommandsDir = path.join(customBaseDir, SETTINGS_DIR, COMMANDS_DIR);
-    isCustomCommand = normalizedTarget.startsWith(path.resolve(customCommandsDir));
+    const customCommandsDir = path.join(
+      customBaseDir,
+      SETTINGS_DIR,
+      COMMANDS_DIR
+    );
+    isCustomCommand = normalizedTarget.startsWith(
+      path.resolve(customCommandsDir)
+    );
   }
 
-  if (!isUserCommand && !isProjectCommand && !isParentCommand && !isCustomCommand) {
-    const validLocations = [userCommandsDir, projectCommandsDir, 'parent/.claude/commands/'];
+  if (
+    !isUserCommand &&
+    !isProjectCommand &&
+    !isParentCommand &&
+    !isCustomCommand
+  ) {
+    const validLocations = [
+      userCommandsDir,
+      projectCommandsDir,
+      'parent/.claude/commands/',
+    ];
     if (customBaseDir) {
       validLocations.push(`${customBaseDir}/.claude/commands/`);
     }
-    
+
     return {
       valid: false,
       message: `Command files must be in either ${validLocations.join(', ')}`,
@@ -133,7 +148,7 @@ export async function validateCommandPath(
     // Parent command - find the parent commands directory
     baseDir = findParentCommandsDir(normalizedTarget);
   }
-  
+
   const relativePath = path.relative(baseDir, path.dirname(normalizedTarget));
 
   if (namespace) {
@@ -190,7 +205,8 @@ export function validateCommandName(
 
   // Check pattern
   if (!COMMAND_NAME_PATTERN.test(commandName)) {
-    const error = 'Command name must start with a letter or number and contain only letters, numbers, hyphens, and underscores';
+    const error =
+      'Command name must start with a letter or number and contain only letters, numbers, hyphens, and underscores';
     return {
       valid: false,
       errors: [error],
@@ -208,7 +224,11 @@ export function validateCommandName(
       errors: [error],
       message: error, // Backward compatibility
       suggestion: 'Use a shorter, more concise name',
-      details: { commandName, length: commandName.length, maxLength: COMMAND_VALIDATION.MAX_NAME_LENGTH },
+      details: {
+        commandName,
+        length: commandName.length,
+        maxLength: COMMAND_VALIDATION.MAX_NAME_LENGTH,
+      },
     };
   }
 
@@ -264,7 +284,11 @@ export function validateNamespace(
       valid: false,
       message: `Namespace depth cannot exceed ${COMMAND_VALIDATION.MAX_NAMESPACE_DEPTH} levels`,
       suggestion: 'Use fewer nested levels in your namespace',
-      details: { namespace, levels: levels.length, maxLevels: COMMAND_VALIDATION.MAX_NAMESPACE_DEPTH },
+      details: {
+        namespace,
+        levels: levels.length,
+        maxLevels: COMMAND_VALIDATION.MAX_NAMESPACE_DEPTH,
+      },
     };
   }
 
@@ -287,7 +311,10 @@ export function validateNamespace(
 /**
  * Determines the type of command file based on its path
  */
-export function getCommandType(filePath: string, projectRoot?: string): SlashCommandType {
+export function getCommandType(
+  filePath: string,
+  projectRoot?: string
+): SlashCommandType {
   const normalizedPath = path.resolve(filePath);
   const homeDir = os.homedir();
   const userCommandsDir = path.join(homeDir, SETTINGS_DIR, COMMANDS_DIR);
@@ -317,7 +344,7 @@ export function buildCommandPath(
   customBaseDir?: string
 ): string {
   const homeDir = os.homedir();
-  
+
   let baseDir: string;
   if (customBaseDir) {
     // Use custom directory with .claude/commands structure
@@ -474,27 +501,30 @@ export function validateCommandFile(
 /**
  * Checks if a command path is in a parent directory
  */
-function isParentCommandPath(commandPath: string, projectRoot: string): boolean {
+function isParentCommandPath(
+  commandPath: string,
+  projectRoot: string
+): boolean {
   const normalizedCommandPath = path.resolve(commandPath);
   const normalizedProjectPath = path.resolve(projectRoot);
-  
+
   // Check if the command path contains .claude/commands and is outside the project
   if (!normalizedCommandPath.includes(path.join('.claude', 'commands'))) {
     return false;
   }
-  
+
   // Check if it's outside the project root
   if (normalizedCommandPath.startsWith(normalizedProjectPath)) {
     return false;
   }
-  
+
   // Check if the project is within the parent directory of the command
-  const commandDir = path.dirname(normalizedCommandPath);
+  const _commandDir = path.dirname(normalizedCommandPath);
   const parentDir = findParentCommandsDir(normalizedCommandPath);
   if (!parentDir) {
     return false;
   }
-  
+
   const parentRootDir = path.dirname(parentDir);
   return normalizedProjectPath.startsWith(parentRootDir);
 }
@@ -505,19 +535,22 @@ function isParentCommandPath(commandPath: string, projectRoot: string): boolean 
 function findParentCommandsDir(commandPath: string): string {
   const normalizedPath = path.resolve(commandPath);
   const pathParts = normalizedPath.split(path.sep);
-  
+
   // Find the index of '.claude' in the path
   const claudeIndex = pathParts.findIndex(part => part === '.claude');
   if (claudeIndex === -1) {
     return '';
   }
-  
+
   // The commands directory should be right after .claude
   const commandsIndex = claudeIndex + 1;
-  if (commandsIndex >= pathParts.length || pathParts[commandsIndex] !== 'commands') {
+  if (
+    commandsIndex >= pathParts.length ||
+    pathParts[commandsIndex] !== 'commands'
+  ) {
     return '';
   }
-  
+
   // Return the path up to and including 'commands'
   return pathParts.slice(0, commandsIndex + 1).join(path.sep);
 }

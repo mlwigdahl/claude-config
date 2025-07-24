@@ -77,11 +77,13 @@ export async function discoverSettingsFiles(
       let content: SettingsConfig | undefined;
       try {
         content = await readJsonFile<SettingsConfig>(filePath);
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Only log parsing warnings in non-test environments to reduce test noise
         if (!isTestEnvironment()) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
           logger.warn(
-            `Failed to read settings file ${filePath}: ${error.message}`
+            `Failed to read settings file ${filePath}: ${errorMessage}`
           );
         }
       }

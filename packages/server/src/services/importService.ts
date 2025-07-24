@@ -103,15 +103,15 @@ export class ImportService {
 
       // Filter files based on options
       let filesToProcess = preview.filesToImport;
-      
+
       // Filter out user files if not requested
       if (!options.includeUserPath) {
         filesToProcess = filesToProcess.filter(file => file.source !== 'user');
       }
-      
+
       // Filter by selected files if provided
       if (options.selectedFiles && options.selectedFiles.length > 0) {
-        filesToProcess = filesToProcess.filter(file => 
+        filesToProcess = filesToProcess.filter(file =>
           options.selectedFiles!.includes(file.archivePath)
         );
       }
@@ -233,11 +233,11 @@ export class ImportService {
             if (configCheck?.type) {
               // Normalize path separators
               const normalizedArchivePath = entry.fileName.replace(/\\/g, '/');
-              
+
               // Determine source and relative path
               let source: 'project' | 'user' = 'project';
               let relativePath = normalizedArchivePath;
-              
+
               if (normalizedArchivePath.startsWith('user/')) {
                 source = 'user';
                 relativePath = normalizedArchivePath.substring(5); // Remove 'user/' prefix
@@ -245,7 +245,7 @@ export class ImportService {
                 source = 'project';
                 relativePath = normalizedArchivePath.substring(8); // Remove 'project/' prefix
               }
-              
+
               // Calculate target path based on source
               let targetFilePath: string;
               if (source === 'user') {

@@ -151,7 +151,7 @@ export interface CommandNameValidationResult {
   errors?: string[]; // Standardized errors array
   warnings?: string[]; // Optional warnings
   message?: string; // Backward compatibility
-  suggestion?: string; // Backward compatibility  
+  suggestion?: string; // Backward compatibility
   details?: any; // Additional metadata
 }
 

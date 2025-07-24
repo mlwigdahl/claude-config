@@ -459,7 +459,10 @@ export class ErrorFactory {
   /**
    * Create a file not found error
    */
-  static fileNotFound(filePath: string, context?: Record<string, any>): ApplicationError {
+  static fileNotFound(
+    filePath: string,
+    context?: Record<string, any>
+  ): ApplicationError {
     return new ApplicationError({
       message: `File not found: ${filePath}`,
       code: ErrorCode.FILE_NOT_FOUND,
@@ -471,7 +474,10 @@ export class ErrorFactory {
   /**
    * Create a file already exists error
    */
-  static fileAlreadyExists(filePath: string, context?: Record<string, any>): ApplicationError {
+  static fileAlreadyExists(
+    filePath: string,
+    context?: Record<string, any>
+  ): ApplicationError {
     return new ApplicationError({
       message: `File already exists: ${filePath}`,
       code: ErrorCode.FILE_ALREADY_EXISTS,
@@ -483,7 +489,11 @@ export class ErrorFactory {
   /**
    * Create a validation failed error
    */
-  static validationFailed(message: string, validationErrors: string[], context?: Record<string, any>): ApplicationError {
+  static validationFailed(
+    message: string,
+    validationErrors: string[],
+    context?: Record<string, any>
+  ): ApplicationError {
     return new ApplicationError({
       message,
       code: ErrorCode.VALIDATION_FAILED,
@@ -495,7 +505,11 @@ export class ErrorFactory {
   /**
    * Create an invalid path error
    */
-  static invalidPath(path: string, reason: string, context?: Record<string, any>): ApplicationError {
+  static invalidPath(
+    path: string,
+    reason: string,
+    context?: Record<string, any>
+  ): ApplicationError {
     return new ApplicationError({
       message: `Invalid path: ${path}. ${reason}`,
       code: ErrorCode.INVALID_PATH,
@@ -507,7 +521,11 @@ export class ErrorFactory {
   /**
    * Create a permission denied error
    */
-  static permissionDenied(resource: string, operation: string, context?: Record<string, any>): ApplicationError {
+  static permissionDenied(
+    resource: string,
+    operation: string,
+    context?: Record<string, any>
+  ): ApplicationError {
     return new ApplicationError({
       message: `Permission denied: cannot ${operation} ${resource}`,
       code: ErrorCode.PERMISSION_DENIED,
@@ -519,7 +537,10 @@ export class ErrorFactory {
   /**
    * Create an invalid content error
    */
-  static invalidContent(reason: string, context?: Record<string, any>): ApplicationError {
+  static invalidContent(
+    reason: string,
+    context?: Record<string, any>
+  ): ApplicationError {
     return new ApplicationError({
       message: `Invalid content: ${reason}`,
       code: ErrorCode.INVALID_CONTENT,
@@ -531,7 +552,11 @@ export class ErrorFactory {
   /**
    * Create an operation failed error with wrapped cause
    */
-  static operationFailed(operation: string, cause: Error, context?: Record<string, any>): ApplicationError {
+  static operationFailed(
+    operation: string,
+    cause: Error,
+    context?: Record<string, any>
+  ): ApplicationError {
     return new ApplicationError({
       message: `Operation failed: ${operation}`,
       code: ErrorCode.OPERATION_FAILED,
@@ -549,7 +574,11 @@ export class ValidationFactory {
   /**
    * Create a standardized validation result for success
    */
-  static success(warnings: string[] = []): { valid: boolean; errors: string[]; warnings: string[] } {
+  static success(warnings: string[] = []): {
+    valid: boolean;
+    errors: string[];
+    warnings: string[];
+  } {
     return {
       valid: true,
       errors: [],
@@ -560,7 +589,10 @@ export class ValidationFactory {
   /**
    * Create a standardized validation result for failure
    */
-  static failure(errors: string[], warnings: string[] = []): { valid: boolean; errors: string[]; warnings: string[] } {
+  static failure(
+    errors: string[],
+    warnings: string[] = []
+  ): { valid: boolean; errors: string[]; warnings: string[] } {
     return {
       valid: false,
       errors,
@@ -571,7 +603,10 @@ export class ValidationFactory {
   /**
    * Create a standardized validation result with single error
    */
-  static singleError(error: string, warnings: string[] = []): { valid: boolean; errors: string[]; warnings: string[] } {
+  static singleError(
+    error: string,
+    warnings: string[] = []
+  ): { valid: boolean; errors: string[]; warnings: string[] } {
     return {
       valid: false,
       errors: [error],
