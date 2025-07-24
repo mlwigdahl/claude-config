@@ -1474,7 +1474,8 @@ export class FileSystemService {
       stats.totalFiles++;
       const configCheck = FileSystemService.isConfigurationFile(
         nodeName,
-        nodePath
+        nodePath,
+        isHomeContext
       );
 
       if (configCheck.valid && configCheck.type) {

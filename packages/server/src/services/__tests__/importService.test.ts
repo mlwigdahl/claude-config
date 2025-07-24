@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as os from 'os';
 import { ImportService } from '../importService.js';
 import { ConsolidatedFileSystem } from '@claude-config/core';
 import type { ImportOptions } from '@claude-config/shared';
@@ -28,19 +29,45 @@ jest.mock('../configurationService.js', () => ({
   },
 }));
 
+jest.mock('../fileSystemService.js', () => ({
+  FileSystemService: {
+    isConfigurationFile: jest.fn(),
+  },
+}));
+
 jest.mock('yauzl', () => ({
   fromBuffer: jest.fn(),
 }));
 
 // Import mocks
 import { ConfigurationServiceAPI } from '../configurationService.js';
+import { FileSystemService } from '../fileSystemService.js';
 
 const mockedFS = ConsolidatedFileSystem as jest.Mocked<typeof ConsolidatedFileSystem>;
 const mockedConfigService = ConfigurationServiceAPI as jest.Mocked<typeof ConfigurationServiceAPI>;
+const mockedFileSystemService = FileSystemService as jest.Mocked<typeof FileSystemService>;
 const mockedYauzl = yauzl as jest.Mocked<typeof yauzl>;
 
 describe('ImportService', () => {
   const testTargetPath = '/test/target';
+  
+  // Helper to mock file configuration checks
+  const mockFileConfigChecks = () => {
+    mockedFileSystemService.isConfigurationFile.mockImplementation((filename, filePath, isHomeContext) => {
+      if (filename === 'CLAUDE.md') return { type: 'memory', valid: true };
+      if (filename.endsWith('.md')) {
+        // Check if it's in commands directory
+        if (filePath && (filePath.includes('/.claude/commands/') || filePath.includes('\\.claude\\commands\\'))) {
+          return { type: 'command', valid: true };
+        }
+        return { type: 'memory', valid: true };
+      }
+      if (filename === 'settings.json' || filename === 'settings.local.json') 
+        return { type: 'settings', valid: true };
+      if (filename === 'commands.json') return { type: 'command', valid: true };
+      return { type: null, valid: false };
+    });
+  };
   
   const createMockZipFile = (entries: { fileName: string; content: string }[]) => {
     const mockZipFile: any = {
@@ -106,6 +133,9 @@ describe('ImportService', () => {
     // Default mock implementations
     mockedFS.directoryExists.mockResolvedValue(true);
     mockedFS.fileExists.mockResolvedValue(false);
+    
+    // Default mock for file configuration checks
+    mockFileConfigChecks();
     mockedFS.ensureDirectory.mockResolvedValue(void 0);
     mockedFS.writeFile.mockResolvedValue(null);
   });
@@ -138,6 +168,9 @@ describe('ImportService', () => {
         { fileName: 'README.md', content: 'Not a config file' },
         { fileName: 'package.json', content: '{}' }
       ];
+
+      // Override the default mock for this test to ensure no valid config files
+      mockedFileSystemService.isConfigurationFile.mockReturnValue({ type: null, valid: false });
       
       const mockZipFile = createMockZipFile(entries);
       mockedYauzl.fromBuffer.mockImplementation((buffer: Buffer, optionsOrCallback?: any, callback?: any) => {
@@ -161,6 +194,9 @@ describe('ImportService', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('No valid configuration files found in archive');
       expect(result.totalFiles).toBe(0);
+
+      // Restore default mock
+      mockFileConfigChecks();
     });
 
     it('should successfully preview valid config files from archive', async () => {
@@ -433,6 +469,72 @@ describe('ImportService', () => {
       expect(result.filesSkipped).toBe(0);
       expect(result.conflicts).toEqual([]); // No remaining conflicts since overwritten
       expect(mockedFS.writeFile).toHaveBeenCalledTimes(2);
+    });
+
+    it('should import command files to user path when files have user/ prefix', async () => {
+      // Use default mock for file configuration checks
+      mockFileConfigChecks();
+      
+      const entries = [
+        { fileName: 'project/CLAUDE.md', content: '# Project memory' },
+        { fileName: 'user/.claude/CLAUDE.md', content: '# User memory' },
+        { fileName: 'user/.claude/commands/my-command.md', content: '# My command' },
+        { fileName: 'user/.claude/commands/namespace/nested-cmd.md', content: '# Nested command' }
+      ];
+      
+      const mockZipFile = createMockZipFile(entries);
+      mockedYauzl.fromBuffer.mockImplementation((buffer: Buffer, optionsOrCallback?: any, callback?: any) => {
+        if (typeof optionsOrCallback === 'function') {
+          optionsOrCallback(null, mockZipFile);
+        } else if (callback) {
+          callback(null, mockZipFile);
+        }
+      });
+
+      const archiveBuffer = Buffer.from('mock-zip-data');
+      const optionsWithUserPath = { ...defaultOptions, includeUserPath: true };
+      
+      // Track writeFile calls manually
+      const writeFileCalls: any[] = [];
+      mockedFS.writeFile.mockImplementation(async (filepath, content) => {
+        writeFileCalls.push([filepath, content]);
+        return null;
+      });
+      
+      const result = await ImportService.importProject(archiveBuffer, testTargetPath, optionsWithUserPath);
+      
+      expect(result.success).toBe(true);
+      expect(result.filesImported).toBe(4); // All 4 files imported
+      expect(mockedFS.writeFile).toHaveBeenCalledTimes(4);
+      
+      // Check that user files were written to the correct paths
+      const userClaudePath = path.join(os.homedir(), '.claude');
+      
+      // Normalize paths for cross-platform comparison
+      const normalizedWriteCalls = writeFileCalls.map(([filepath, content]) => [
+        path.normalize(filepath),
+        content
+      ]);
+      
+      // Verify user files were written to home directory
+      expect(normalizedWriteCalls.some(([filepath]) => 
+        filepath === path.normalize(path.join(userClaudePath, 'CLAUDE.md'))
+      )).toBe(true);
+      
+      expect(normalizedWriteCalls.some(([filepath]) => 
+        filepath === path.normalize(path.join(userClaudePath, 'commands', 'my-command.md'))
+      )).toBe(true);
+      
+      expect(normalizedWriteCalls.some(([filepath]) => 
+        filepath === path.normalize(path.join(userClaudePath, 'commands', 'namespace', 'nested-cmd.md'))
+      )).toBe(true);
+      
+      // Verify project file was written to project path
+      // On Windows, the path might be resolved to an absolute path with drive letter
+      const expectedProjectFile = path.normalize(path.join(testTargetPath, 'CLAUDE.md'));
+      expect(normalizedWriteCalls.some(([filepath]) => 
+        filepath.endsWith(expectedProjectFile) || filepath === expectedProjectFile
+      )).toBe(true);
     });
   });
 

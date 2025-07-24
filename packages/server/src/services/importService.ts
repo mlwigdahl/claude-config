@@ -4,7 +4,7 @@ import * as os from 'os';
 import yauzl from 'yauzl';
 import { createError } from '../middleware/errorHandler.js';
 import { getLogger } from '@claude-config/core';
-import { ConfigurationServiceAPI } from './configurationService.js';
+import { FileSystemService } from './fileSystemService.js';
 import type {
   ImportFileEntry,
   ImportConflict,
@@ -227,10 +227,16 @@ export class ImportService {
               ? filename.replace('.inactive', '')
               : filename;
 
-            const configCheck =
-              ConfigurationServiceAPI.getFileConfigurationType(baseFilename);
+            // Use entry.fileName to get the full path from archive
+            // Check if this is a user path file
+            const isUserFile = entry.fileName.startsWith('user/');
+            const configCheck = FileSystemService.isConfigurationFile(
+              baseFilename,
+              entry.fileName,
+              isUserFile // Use home context for user files
+            );
 
-            if (configCheck?.type) {
+            if (configCheck.valid && configCheck.type) {
               // Normalize path separators
               const normalizedArchivePath = entry.fileName.replace(/\\/g, '/');
 
@@ -241,6 +247,10 @@ export class ImportService {
               if (normalizedArchivePath.startsWith('user/')) {
                 source = 'user';
                 relativePath = normalizedArchivePath.substring(5); // Remove 'user/' prefix
+                // Also remove '.claude/' prefix if present for user files
+                if (relativePath.startsWith('.claude/')) {
+                  relativePath = relativePath.substring(8); // Remove '.claude/' prefix
+                }
               } else if (normalizedArchivePath.startsWith('project/')) {
                 source = 'project';
                 relativePath = normalizedArchivePath.substring(8); // Remove 'project/' prefix
@@ -249,7 +259,7 @@ export class ImportService {
               // Calculate target path based on source
               let targetFilePath: string;
               if (source === 'user') {
-                // User files go to the user's home directory
+                // User files go to the user's home .claude directory
                 const userClaudePath = path.join(os.homedir(), '.claude');
                 targetFilePath = path.resolve(userClaudePath, relativePath);
               } else {

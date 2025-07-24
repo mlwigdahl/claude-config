@@ -5,7 +5,7 @@ import archiver from 'archiver';
 import { minimatch } from 'minimatch';
 import { createError } from '../middleware/errorHandler.js';
 import { getLogger } from '@claude-config/core';
-import { ConfigurationServiceAPI } from './configurationService.js';
+import { FileSystemService } from './fileSystemService.js';
 import type {
   ExportOptions,
   ExportResult,
@@ -77,9 +77,12 @@ export class ExportService {
     }
 
     // Special exception: never ignore configuration files anywhere
-    const configCheck =
-      ConfigurationServiceAPI.getFileConfigurationType(filename);
-    if (configCheck?.type) {
+    const configCheck = FileSystemService.isConfigurationFile(
+      filename,
+      filePath,
+      false // Not home context
+    );
+    if (configCheck.valid) {
       return false;
     }
 
@@ -245,7 +248,8 @@ export class ExportService {
     files: ExportFileEntry[],
     options: ExportOptions,
     visitedDirs: Set<string>,
-    gitignorePatterns: string[]
+    gitignorePatterns: string[],
+    isUserPath: boolean = false
   ): Promise<void> {
     // Normalize current directory path for cross-platform compatibility
     const normalizedCurrentDir = currentDir.replace(/\\/g, '/');
@@ -280,15 +284,38 @@ export class ExportService {
         const stats = await ConsolidatedFileSystem.getFileStats(fullPath);
 
         if (stats.isDirectory) {
-          // Recurse into subdirectories if enabled
-          if (options.recursive) {
+          // Check if we're entering or already in a commands directory
+          const normalizedFullPath = fullPath.replace(/\\/g, '/');
+          const normalizedCurrentDir = currentDir.replace(/\\/g, '/');
+          
+          // Special handling for command directories - always recurse into them
+          const isClaudeDir = entry === '.claude';
+          
+          // For project paths: check for .claude/commands
+          // For user paths: check for just commands (since we start in .claude)
+          const isEnteringCommandsDir = entry === 'commands' && 
+            (normalizedCurrentDir.endsWith('/.claude') || isUserPath);
+          
+          const isInsideCommandsDir = normalizedCurrentDir.includes('/commands') && 
+            (normalizedCurrentDir.includes('/.claude/commands') || isUserPath);
+          
+          // We should recurse if:
+          // 1. This is a .claude directory (to look for commands inside)
+          // 2. We're entering a commands directory (with commandFiles option enabled)
+          // 3. We're already inside a commands directory
+          // 4. OR the general recursive option is enabled
+          const shouldAlwaysRecurse = isClaudeDir || 
+            (options.commandFiles && (isEnteringCommandsDir || isInsideCommandsDir));
+          
+          if (shouldAlwaysRecurse || options.recursive) {
             await this.collectFromDirectory(
               fullPath,
               projectRoot,
               files,
               options,
               visitedDirs,
-              gitignorePatterns
+              gitignorePatterns,
+              isUserPath
             );
           }
         } else if (stats.isFile) {
@@ -296,7 +323,8 @@ export class ExportService {
           const fileEntry = await this.evaluateFileForExport(
             fullPath,
             projectRoot,
-            options
+            options,
+            isUserPath
           );
           if (fileEntry) {
             files.push(fileEntry);
@@ -315,7 +343,8 @@ export class ExportService {
   private static async evaluateFileForExport(
     filePath: string,
     projectRoot: string,
-    options: ExportOptions
+    options: ExportOptions,
+    isUserPath: boolean = false
   ): Promise<ExportFileEntry | null> {
     const filename = path.basename(filePath);
     const isInactive = filename.endsWith('.inactive');
@@ -329,15 +358,23 @@ export class ExportService {
     }
 
     // Check file type and inclusion criteria
-    const configCheck =
-      ConfigurationServiceAPI.getFileConfigurationType(baseFilename);
+    // Use FileSystemService to properly identify file types with path context
+    const configCheck = FileSystemService.isConfigurationFile(
+      baseFilename,
+      filePath,
+      isUserPath // Use isUserPath to determine home context
+    );
+
+    if (!configCheck.valid || !configCheck.type) {
+      // Not a configuration file
+      return null;
+    }
 
     let shouldInclude = false;
-    let fileType: 'memory' | 'settings' | 'command';
+    let fileType: 'memory' | 'settings' | 'command' = configCheck.type;
 
-    switch (configCheck?.type) {
+    switch (configCheck.type) {
       case 'memory':
-        fileType = 'memory';
         if (options.memoryFiles === 'all') {
           shouldInclude = true;
         } else if (
@@ -349,7 +386,6 @@ export class ExportService {
         break;
 
       case 'settings':
-        fileType = 'settings';
         if (options.settingsFiles === 'both') {
           shouldInclude = true;
         } else if (
@@ -361,7 +397,6 @@ export class ExportService {
         break;
 
       case 'command':
-        fileType = 'command';
         shouldInclude = options.commandFiles;
         break;
 
@@ -404,13 +439,15 @@ export class ExportService {
     const visitedDirs = new Set<string>();
 
     // For user path, we don't use gitignore patterns
+    // Pass the home directory as projectRoot to preserve .claude in the relative path
     await this.collectFromDirectory(
       userClaudePath,
-      userClaudePath,
+      os.homedir(),
       files,
       options,
       visitedDirs,
-      [] // No gitignore patterns for user path
+      [], // No gitignore patterns for user path
+      true // isUserPath - this is user configuration directory
     );
 
     return files;

@@ -11,6 +11,7 @@ jest.mock('os', () => ({
 jest.mock('@claude-config/core', () => ({
   ConsolidatedFileSystem: {
     fileExists: jest.fn(),
+    directoryExists: jest.fn(),
     getFileStats: jest.fn(),
     listDirectory: jest.fn(),
     readFile: jest.fn(),
@@ -35,7 +36,7 @@ describe('FileSystemService - Home Directory Handling', () => {
   describe('buildFilteredFileTree', () => {
     it('should only scan .claude subdirectory when processing home directory', async () => {
       // Mock that .claude directory exists
-      (ConsolidatedFileSystem.fileExists as jest.Mock).mockResolvedValue(true);
+      (ConsolidatedFileSystem.directoryExists as jest.Mock).mockResolvedValue(true);
       (ConsolidatedFileSystem.getFileStats as jest.Mock).mockImplementation(async (filePath: string) => {
         if (filePath === mockClaudeDir) {
           return {
@@ -78,7 +79,7 @@ describe('FileSystemService - Home Directory Handling', () => {
 
     it('should handle missing .claude directory gracefully', async () => {
       // Mock that .claude directory doesn't exist
-      (ConsolidatedFileSystem.fileExists as jest.Mock).mockResolvedValue(false);
+      (ConsolidatedFileSystem.directoryExists as jest.Mock).mockResolvedValue(false);
 
       const result = await fileSystemService.buildFilteredFileTree(mockHomeDir, mockHomeDir);
 
@@ -91,7 +92,7 @@ describe('FileSystemService - Home Directory Handling', () => {
 
     it('should not scan other directories in home directory', async () => {
       // Mock home directory with multiple subdirectories
-      (ConsolidatedFileSystem.fileExists as jest.Mock).mockResolvedValue(true);
+      (ConsolidatedFileSystem.directoryExists as jest.Mock).mockResolvedValue(true);
       (ConsolidatedFileSystem.getFileStats as jest.Mock).mockImplementation(async (filePath: string) => {
         return {
           exists: true,
@@ -211,6 +212,114 @@ describe('FileSystemService - Home Directory Handling', () => {
 
       expect(result.valid).toBe(true);
       expect(result.type).toBe('memory');
+    });
+  });
+
+  describe('buildFilteredTreeNode with home context', () => {
+    it('should respect home context when processing file nodes directly', async () => {
+      const claudeMemoryPath = path.join(mockHomeDir, '.claude', 'CLAUDE.md');
+      
+      // Mock that .claude directory exists
+      (ConsolidatedFileSystem.directoryExists as jest.Mock).mockResolvedValue(true);
+      
+      // Mock file stats for a memory file in .claude
+      (ConsolidatedFileSystem.getFileStats as jest.Mock).mockImplementation(async (filePath: string) => {
+        if (filePath === mockClaudeDir) {
+          return {
+            exists: true,
+            isDirectory: true,
+            isFile: false,
+            size: 0,
+            lastModified: new Date(),
+          };
+        }
+        return {
+          exists: true,
+          isDirectory: false,
+          isFile: true,
+          size: 100,
+          lastModified: new Date(),
+        };
+      });
+
+      // Mock reading file content for validation
+      (ConsolidatedFileSystem.readFile as jest.Mock).mockResolvedValue('# Claude Memory File');
+
+      // Mock directory listing
+      (ConsolidatedFileSystem.listDirectory as jest.Mock).mockImplementation(async (dirPath: string) => {
+        if (dirPath === mockClaudeDir) {
+          return ['CLAUDE.md'];
+        }
+        return [];
+      });
+
+      // Build tree with home context for a single file
+      const result = await fileSystemService.buildFilteredFileTree(mockHomeDir, mockHomeDir);
+
+      // Verify that the tree building correctly identifies memory files in .claude
+      // when processing them as file nodes (not just as directory children)
+      const listDirCalls = (ConsolidatedFileSystem.listDirectory as jest.Mock).mock.calls;
+      
+      // The home directory scanning should detect .claude subdirectory
+      expect(listDirCalls.some((call: any[]) => call[0] === mockClaudeDir)).toBe(true);
+    });
+
+    it('should correctly handle newly created memory files in .claude directory', async () => {
+      const newMemoryFile = 'new-memory.md';
+      const newMemoryPath = path.join(mockHomeDir, '.claude', newMemoryFile);
+
+      // Mock .claude directory exists
+      (ConsolidatedFileSystem.directoryExists as jest.Mock).mockResolvedValue(true);
+      
+      // Mock directory and file stats
+      (ConsolidatedFileSystem.getFileStats as jest.Mock).mockImplementation(async (filePath: string) => {
+        if (filePath === mockClaudeDir) {
+          return {
+            exists: true,
+            isDirectory: true,
+            isFile: false,
+            size: 0,
+            lastModified: new Date(),
+          };
+        }
+        if (filePath === newMemoryPath || filePath.endsWith('.md')) {
+          return {
+            exists: true,
+            isDirectory: false,
+            isFile: true,
+            size: 100,
+            lastModified: new Date(),
+          };
+        }
+        return {
+          exists: false,
+          isDirectory: false,
+          isFile: false,
+          size: 0,
+          lastModified: new Date(),
+        };
+      });
+
+      // Mock .claude directory contents including the new file
+      (ConsolidatedFileSystem.listDirectory as jest.Mock).mockImplementation(async (dirPath: string) => {
+        if (dirPath === mockClaudeDir) {
+          return ['CLAUDE.md', newMemoryFile, 'settings.json'];
+        }
+        return [];
+      });
+
+      const result = await fileSystemService.buildFilteredFileTree(mockHomeDir, mockHomeDir);
+
+      // Should include the newly created memory file
+      expect(result.tree.children).toHaveLength(1); // Only .claude
+      expect(result.tree.children![0].name).toBe('.claude');
+      
+      const claudeChildren = result.tree.children![0].children || [];
+      const memoryFiles = claudeChildren.filter(child => child.fileType === 'memory');
+      
+      // Should have both CLAUDE.md and new-memory.md
+      expect(memoryFiles.length).toBeGreaterThanOrEqual(2);
+      expect(memoryFiles.some(file => file.name === newMemoryFile)).toBe(true);
     });
   });
 });
