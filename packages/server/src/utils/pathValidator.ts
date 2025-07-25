@@ -22,8 +22,10 @@ export function validatePath(inputPath: string): string {
     throw createError('Path cannot be empty', 400);
   }
 
-  // Resolve to absolute path
-  const resolvedPath = path.resolve(inputPath);
+  // If already absolute, don't resolve (which uses cwd)
+  const resolvedPath = path.isAbsolute(inputPath) 
+    ? inputPath 
+    : path.resolve(inputPath);
 
   // Normalize to prevent directory traversal
   const normalizedPath = path.normalize(resolvedPath);

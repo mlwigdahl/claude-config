@@ -250,8 +250,19 @@ export class FileSystemService {
    */
   async readFile(filePath: string): Promise<string> {
     try {
+      logger.info(`Reading file: ${filePath}`);
+      logger.info(`Current working directory: ${process.cwd()}`);
+      
+      // Log both the input path and resolved path
+      const resolvedPath = path.resolve(filePath);
+      if (resolvedPath !== filePath) {
+        logger.warn(`Path resolution changed: ${filePath} -> ${resolvedPath}`);
+      }
+      
       // Check if file exists and is a file
       const stats = await ConsolidatedFileSystem.getFileStats(filePath);
+      logger.info(`File stats for ${filePath}:`, { ...stats });
+      
       if (!stats.exists) {
         throw createError('File not found', 404);
       }
@@ -1441,6 +1452,20 @@ export class FileSystemService {
                 childPath,
                 isHomeContext
               );
+              
+              // Debug logging for file filtering
+              if (entry.endsWith('.md') || entry === 'CLAUDE.md') {
+                logger.info(`[TREE] Checking ${entry}:`, {
+                  path: childPath,
+                  isHomeContext,
+                  configCheck,
+                  nodePath,
+                  projectRoot,
+                  isProjectPath: !childPath.includes('.claude'),
+                  cwd: process.cwd()
+                });
+              }
+              
               if (configCheck.valid) {
                 const childNode = await this.buildFilteredTreeNode(
                   childPath,

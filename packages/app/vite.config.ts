@@ -13,8 +13,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react/jsx-runtime'],
-          'vendor-chakra': ['@chakra-ui/react', '@emotion/react', '@emotion/styled'],
-          'vendor-ui': ['framer-motion', '@chakra-ui/icons'],
+          'vendor-chakra': ['@chakra-ui/react', '@emotion/react', '@emotion/styled', 'framer-motion'],
+          'vendor-ui': ['@chakra-ui/icons'],
         },
       },
     },
@@ -50,6 +50,15 @@ export default defineConfig({
     setupFiles: ['./src/setupTests.ts'],
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react/jsx-runtime', '@chakra-ui/react', '@emotion/react', '@emotion/styled'],
+    include: [
+      'react', 
+      'react-dom', 
+      'react/jsx-runtime', 
+      '@chakra-ui/react', 
+      '@emotion/react', 
+      '@emotion/styled',
+      'framer-motion',
+      '@chakra-ui/icons'
+    ],
   },
 })
