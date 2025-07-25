@@ -2,7 +2,7 @@
 Experimental "vibe coded" application for managing Claude Code configuration
 
 # Docker Quick Start
-Currently only working in Linux/WSL, not with a windows based container.
+Docker build and run is currently only working in Linux/WSL, not with a windows based container.
 
 ## Prerequisites
 - Docker installed and running
